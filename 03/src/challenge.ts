@@ -3,6 +3,7 @@ import {
   debugPrintChallenge,
   getAdjacentIndices,
   getNumbersWithPositions,
+  getSumOfProductOfNumbersSurroundingSymbolIfOnlyXNumbers,
   getSymbolAdjacentNumbers,
   parseChallenge,
 } from "./utils.ts";
@@ -21,11 +22,10 @@ const symbolAdjacentNumbers = getSymbolAdjacentNumbers(
   adjacencyIndices,
 );
 
-console.log("Adjacency map:\n", numbersWithPositions);
 debugPrintChallenge(parsedInput, adjacencyIndices);
 
 const resPart1 = sum(symbolAdjacentNumbers);
-// const resPart2 = sumOfPowerOfGames(parsedInput);
+const resPart2 = getSumOfProductOfNumbersSurroundingSymbolIfOnlyXNumbers(/\*/, parsedInput, 2);
 
 console.log("Part 1's result is", resPart1);
-// console.log("Part 2's result is", resPart2);
+console.log("Part 2's result is", resPart2);
