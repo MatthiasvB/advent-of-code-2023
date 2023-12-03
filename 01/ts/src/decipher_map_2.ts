@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { getFirstNumber, getLastNumber, multiLineSumWithForwardBackwardSearch } from "./utils.ts";
+import { multiLineSumWithForwardBackwardSearch } from "./utils.ts";
 
 const fileName = Deno.args[0]; // first argument
 
