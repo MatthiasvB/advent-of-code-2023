@@ -26,3 +26,27 @@ pub fn multi_line_sum(input: &str) -> usize {
         .map(|line| line_sum(line))
         .sum()
 }
+
+fn is_literal_number(char: &str) -> bool {
+    static NUMBER_MATCHER: Lazy<Regex> = Lazy::new(|| Regex::new(r"([0-9])").unwrap());
+    NUMBER_MATCHER.is_match(char)
+}
+
+fn is_spelled_out_number(candidate: &str) -> bool {
+    todo!()
+}
+
+fn get_first_number(line: &str) -> usize {
+    let temp = "".to_owned();
+    for char in line.split("").into_iter() {
+        if is_literal_number(char) {
+            return char
+                .parse::<usize>()
+                .expect("Could not parse string that was matched as number. What's going on?");
+        } else {
+            if (is_spelled_out_number(&temp)) {
+                return todo!();
+            }
+        }
+    };
+}
