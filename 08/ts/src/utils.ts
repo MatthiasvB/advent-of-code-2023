@@ -1,3 +1,5 @@
+import { assert } from "node:console";
+
 export interface LeftRight {
   L: string;
   R: string;
@@ -83,7 +85,7 @@ export class Walker {
     return magicSolution;
   }
 
-  public walkByJumpMap() {
+  public walkByJumpMap(approximateMaxDistance = Infinity) {
     const jumpMap = this.getJumMap();
 
     let steps = 0;
@@ -93,17 +95,38 @@ export class Walker {
 
     let debugIter = 0;
 
-    while (!this.haveSameZDistance(currents, itertools)) {
+    while (!this.doAllEndWithZ(currents)) {
+      let c1 = currents, c2 = currents, c3 = currents;
       const maxZDistance = this.maxZDistance(currents, itertools);
       const fullLengthJumps = Math.floor(
         maxZDistance / this.walkInstructions.length
       );
       if (fullLengthJumps === 0) console.warn("stuck!");
       steps += fullLengthJumps * this.walkInstructions.length;
+
+      const somewhatMoreThanKnownSolution = 10868805667831;
+      if (steps >= somewhatMoreThanKnownSolution) {
+        console.log("Making a mistake now. Why didn't I exit?");
+        console.log(c3);
+        console.log(c2);
+        console.log(c1);
+        console.log(currents);
+        currents.forEach(current => {
+          console.log(`${current} will go to Z$ after ${itertools.get(current)?.endInZAfter}`);
+        });
+        throw new Error("Went too far!");
+      }
+      c3 = c2;
+      c2 = c1;
+      c1 = currents
       // Doing assertion because this is performance-critical and not large project
       currents = currents.map(
         (current) => jumpMap.get(current)![fullLengthJumps]
       );
+
+      if (steps >= approximateMaxDistance) {
+        return [steps, currents] as const;
+      }
 
       debugIter++;
       if (debugIter % 1_000_000 === 0) {
@@ -111,10 +134,11 @@ export class Walker {
           `Have done ${debugIter} heavily optimized iterations: ${steps} steps.
 Last one was by ${fullLengthJumps} full length jumps. That's ${fullLengthJumps * this.walkInstructions.length} steps.`
         );
+        console.log(currents);
       }
     }
     // one more assertion
-    return steps + itertools.get(currents[0])!.endInZAfter;
+    return [steps, []] as const;
   }
 
   public sanityCheck() {
@@ -154,6 +178,8 @@ Last one was by ${fullLengthJumps} full length jumps. That's ${fullLengthJumps *
     const maxJumpableDistance =
       maxDistance - (maxDistance % this.walkInstructions.length);
 
+    assert(maxJumpableDistance % this.walkInstructions.length === 0, "maxJumpableDistance is not a multiple of the instruction length");
+
     const jumpMap = allKeys.map((key) => {
       const jumpList = new Array<string>(key);
       let current = key;
@@ -163,18 +189,18 @@ Last one was by ${fullLengthJumps} full length jumps. That's ${fullLengthJumps *
           this.leftRightMap.get(current)![
             this.walkInstructions[i % this.walkInstructions.length] as "L" | "R"
           ];
-        if (i % this.walkInstructions.length === 0) jumpList.push(next);
+        if ((i+1) % this.walkInstructions.length === 0) jumpList.push(next);
         current = next;
       }
       return [key, jumpList] as const;
     });
-    jumpMap.forEach((item) => {
-      console.log(
-        `Item ${item[0]} has jumplist of length ${
-          item[1].length
-        }: ${item[1].slice(0, 20)}...`
-      );
-    });
+    // jumpMap.forEach((item) => {
+    //   console.log(
+    //     `Item ${item[0]} has jumplist of length ${
+    //       item[1].length
+    //     }: ${item[1].slice(0, 20)}...`
+    //   );
+    // });
     return new Map(jumpMap);
   }
 
@@ -244,7 +270,7 @@ Last one was by ${fullLengthJumps} full length jumps. That's ${fullLengthJumps *
     return [...this.leftRightMap.keys()].filter((key) => matcher.test(key));
   }
 
-  public walkFromAllAToAllZ(): number {
+  public walkFromAllAToAllZ(maxSteps = Infinity): [number, string[]] {
     let currents = this.getAllLocationsMatching(/A$/);
 
     let steps = 0;
@@ -260,6 +286,9 @@ Last one was by ${fullLengthJumps} full length jumps. That's ${fullLengthJumps *
         return next;
       });
       steps++;
+      if (steps === maxSteps) {
+        return [steps, currents];
+      }
       if (steps % 10_000_000 === 0) {
         console.log(`Done with step ${steps}\n-> ${currents}`);
       }
@@ -268,7 +297,7 @@ Last one was by ${fullLengthJumps} full length jumps. That's ${fullLengthJumps *
         console.log(`Ending in Z: ${zEndings} of ${currents.length}`);
       }
     } while (this.numberOfZEndings(currents) !== currents.length);
-    return steps;
+    return [steps, []];
   }
 
   public walkFromAllAToAllZOptimized() {
