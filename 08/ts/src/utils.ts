@@ -10,6 +10,7 @@ const debug = true;
 interface Itertool {
   fullRangeTarget: string;
   endInZAfter: number;
+  nextZ: number;
 }
 
 // stolen from https://stackoverflow.com/questions/31302054/how-to-find-the-least-common-multiple-of-a-range-of-numbers
@@ -36,7 +37,7 @@ export class Walker {
     itertools: Map<string, Itertool>
   ) {
     const zDistance0 = itertools.get(currents[0])?.endInZAfter;
-    if (!zDistance0) throw new Error("Could not get z-Distance");
+    if (zDistance0 === null || zDistance0 === undefined) throw new Error("Could not get z-Distance");
 
     for (let i = 1; i < currents.length; i++) {
       if (itertools.get(currents[i])?.endInZAfter !== zDistance0) return false;
@@ -46,7 +47,7 @@ export class Walker {
 
   private maxZDistance(currents: string[], itertools: Map<string, Itertool>) {
     return Math.max(
-      ...currents.map((current) => itertools.get(current)!.endInZAfter)
+      ...currents.map((current) => itertools.get(current)!.nextZ)
     );
   }
 
@@ -95,7 +96,7 @@ export class Walker {
 
     let debugIter = 0;
 
-    while (!this.doAllEndWithZ(currents)) {
+    while (!this.haveSameZDistance(currents, itertools)) {
       let c1 = currents, c2 = currents, c3 = currents;
       const maxZDistance = this.maxZDistance(currents, itertools);
       const fullLengthJumps = Math.floor(
@@ -104,8 +105,8 @@ export class Walker {
       if (fullLengthJumps === 0) console.warn("stuck!");
       steps += fullLengthJumps * this.walkInstructions.length;
 
-      const somewhatMoreThanKnownSolution = 10868805667831;
-      if (steps >= somewhatMoreThanKnownSolution) {
+      const knownSolution = 10868805667831;
+      if (steps >= knownSolution) {
         console.log("Making a mistake now. Why didn't I exit?");
         console.log(c3);
         console.log(c2);
@@ -138,7 +139,7 @@ Last one was by ${fullLengthJumps} full length jumps. That's ${fullLengthJumps *
       }
     }
     // one more assertion
-    return [steps, []] as const;
+    return [steps + itertools.get(currents[0])!.endInZAfter, []] as const;
   }
 
   public sanityCheck() {
@@ -166,13 +167,13 @@ Last one was by ${fullLengthJumps} full length jumps. That's ${fullLengthJumps *
     const allDistancesToZ = allKeys.map((key) => this.walkFromTo(key, /Z$/)[0]);
 
     // sanity check
-    if (debug) {
-      allDistancesToZ.forEach((distance) => {
-        if (distance === 0) {
-          throw new Error("Sanity check failed. Distance to Z with 0 found!");
-        }
-      });
-    }
+    // if (debug) {
+    //   allDistancesToZ.forEach((distance) => {
+    //     if (distance === 0) {
+    //       throw new Error("Sanity check failed. Distance to Z with 0 found!");
+    //     }
+    //   });
+    // }
 
     const maxDistance = Math.max(...allDistancesToZ);
     const maxJumpableDistance =
@@ -221,22 +222,24 @@ Last one was by ${fullLengthJumps} full length jumps. That's ${fullLengthJumps *
       [...this.leftRightMap.keys()].map((key) => {
         const fullRangeTarget = this.targetAfterFullLRRange(key);
         const endInZAfter = this.walkFromTo(key, /Z$/)[0];
+        const nextZ = this.walkFromTo(key, /Z$/, true)[0];
         return [
           key,
           {
             fullRangeTarget,
             endInZAfter,
+            nextZ
           },
         ];
       })
     );
   }
 
-  public walkFromTo(from: string, to: RegExp): [number, string] {
+  public walkFromTo(from: string, to: RegExp, forceWalk = false): [number, string] {
     let current = from;
     let steps = 0;
 
-    do {
+    while (!to.test(current) || (forceWalk && steps === 0)) {
       const next =
         this.leftRightMap.get(current)?.[
           this.walkInstructions[steps % this.walkInstructions.length] as
@@ -248,7 +251,7 @@ Last one was by ${fullLengthJumps} full length jumps. That's ${fullLengthJumps *
       }
       current = next;
       steps++;
-    } while (!to.test(current));
+    };
     return [steps, current];
   }
 
