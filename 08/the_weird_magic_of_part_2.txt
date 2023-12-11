@@ -1,0 +1,17 @@
+XSZ = (XVM, QRD)
+QVA = (QRD, XVM)
+
+BLZ = (LPN, XVJ)
+VSA = (XVJ, LPN)
+
+ZZZ = (MTL, KNJ)
+AAA = (KNJ, MTL)
+
+KKZ = (GDB, LRB)
+VKA = (LRB, GDB)
+
+RGZ = (RFP, RVX)
+PBA = (RVX, RFP)
+
+VQZ = (RDR, VRQ)
+LSA = (VRQ, RDR)
