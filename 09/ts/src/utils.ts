@@ -34,6 +34,16 @@ function extrapolate(derivatives: number[][]) {
   return derivatives;
 }
 
+function extrapolateBackwards(derivatives: number[][]) {
+    for (let i = derivatives.length - 2; i >= 0; i--) {
+      const higherDerivative = derivatives[i + 1];
+      derivatives[i].unshift(
+        derivatives[i][0]! - (higherDerivative[0] ?? 0),
+      );
+    }
+    return derivatives;
+  }
+
 export function solve(parsedInput: number[][]) {
   return sum(
     parsedInput
@@ -42,3 +52,12 @@ export function solve(parsedInput: number[][]) {
       .map((list) => list[0].at(-1)!),
   );
 }
+
+export function solvePart2(parsedInput: number[][]) {
+    return sum(
+      parsedInput
+        .map(getDerivatives)
+        .map(extrapolateBackwards)
+        .map((list) => list[0][0]!),
+    );
+  }
