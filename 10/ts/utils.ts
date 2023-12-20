@@ -1,9 +1,9 @@
 export function transpose<T>(matrix: T[][]) {
   const newMatrix = new Array<T[]>();
   let current = [];
-  for (let rowIndex = 0; rowIndex < matrix.length; rowIndex++) {
-    for (let colIndex = 0; colIndex < matrix[0].length; colIndex++) {
-      current.push(matrix[colIndex][rowIndex]);
+  for (let colIndex = 0; colIndex < matrix[0].length; colIndex++) {
+    for (let rowIndex = 0; rowIndex < matrix.length; rowIndex++) {
+      current.push(matrix[rowIndex][colIndex]);
     }
     newMatrix.push(current);
     current = [];
@@ -115,4 +115,170 @@ export function solve(input: string[][]): number {
     steps++;
   }
   return steps;
+}
+
+export function solvePart2(input: string[][]): number {
+  const original = input.map((x) => [...x]);
+  markTunnel(input);
+  console.log("After mark tunnel:", input.length, "x", input[0].length);
+  // debugLogGrid(input);
+  const extendedGrid = addBetweenSpots(input);
+  const extendedOriginal = addBetweenSpots(original);
+  // debugLogGrid(extendedOriginal);
+  const insetGrid = surroundWithOuter(extendedGrid);
+  const insetOriginal = surroundWithOuter(extendedOriginal);
+  remarkTunnel(insetGrid, insetOriginal);
+  console.log("After inset grid:", insetGrid.length, "x", insetGrid[0].length);
+  // debugLogGrid(insetGrid);
+  while (markAsOuter(insetGrid));
+  return countInner(insetGrid);
+}
+
+function debugLogInsetGrid(grid: string[][]) {
+  // console.log(grid);
+  console.log(grid.length, "x", grid[0].length);
+  console.log(
+    transpose(grid).filter((_, idx) => idx % 2 === 1).map((line) =>
+      line.filter((_, idx) => idx % 2 === 1).join("")
+    ).join("\n"),
+  );
+}
+
+function debugLogGrid(grid: string[][]) {
+  // console.log(grid);
+  console.log(
+    transpose(grid).map((line) => line.join("")).join("\n"),
+  );
+}
+
+function markTunnel(grid: string[][]) {
+  let current = getStartingOptions(grid)[0];
+  grid[current.prev[0]][current.prev[1]] = "T"; // Tunnel
+  while (gridAt(grid, current.curr) !== "T") {
+    current = walkFromVia(grid, current);
+    grid[current.prev[0]][current.prev[1]] = "T";
+  }
+}
+
+function addBetweenSpots(grid: string[][]) {
+  // This adds more padding than required at 2 of four edges. But that doesn't hurt
+  return grid.flatMap((col) => [
+    col.flatMap((el) => [el, "B"]), // Between
+    xTimesN("B", col.length * 2),
+  ]);
+}
+
+function xTimesN<T>(x: T, n: number): T[] {
+  const arr = new Array<T>();
+  for (let i = 0; i < n; i++) {
+    arr.push(x);
+  }
+  return arr;
+}
+
+function remarkTunnel(grid: string[][], original: string[][]) {
+  for (let colIndex = 0; colIndex < grid.length; colIndex++) {
+    for (let rowIndex = 0; rowIndex < grid[0].length; rowIndex++) {
+      const current: Point = [colIndex, rowIndex];
+      if (
+        gridAt(grid, current) === 'B' &&
+        (colIndex - 1 >= 0 && colIndex + 1 < grid.length) &&
+        (rowIndex - 1 >= 0 && rowIndex + 1 < grid[0].length) &&
+        ((isTunnelAndIsConnectedToMe(
+          grid,
+          original,
+          [colIndex - 1, rowIndex],
+          current,
+        ) &&
+          isTunnelAndIsConnectedToMe(
+            grid,
+            original,
+            [colIndex + 1, rowIndex],
+            current,
+          )) ||
+          (isTunnelAndIsConnectedToMe(
+            grid,
+            original,
+            [colIndex, rowIndex - 1],
+            current,
+          ) &&
+            isTunnelAndIsConnectedToMe(
+              grid,
+              original,
+              [colIndex, rowIndex + 1],
+              current,
+            )))
+      ) {
+        grid[colIndex][rowIndex] = "T";
+      }
+    }
+  }
+}
+
+function isTunnelAndIsConnectedToMe(
+  grid: string[][],
+  original: string[][],
+  candidate: Point,
+  self: Point,
+) {
+  if (gridAt(original, candidate) === 'S') return true;
+  if (gridAt(grid, candidate) !== "T") {
+    return false;
+  }
+  return !!navMap[gridAt(original, candidate)]?.(candidate)?.some((p) => {
+    // console.log(p, self, pointEqual(p, self));
+    return pointEqual(p, self);
+  });
+}
+
+function surroundWithOuter(grid: string[][]) {
+  const os = xTimesN("O", grid[0].length + 2); // Outer
+  return [
+    os,
+    ...grid.map((col) => ["O", ...col, "O"]),
+    os,
+  ];
+}
+
+function markAsOuter(grid: string[][]) {
+  let markedOuter = 0;
+  for (let colIndex = 0; colIndex < grid.length; colIndex++) {
+    for (let rowIndex = 0; rowIndex < grid[0].length; rowIndex++) {
+      if (grid[colIndex][rowIndex] === "O") {
+        markedOuter += markSurroundingAsOuter(grid, [colIndex, rowIndex]);
+      }
+    }
+  }
+  return markedOuter;
+}
+
+function markSurroundingAsOuter(grid: string[][], p: Point) {
+  let count = 0;
+  for (const cDelta of [-1, 0, 1]) {
+    for (const rDelta of [-1, 0, 1]) {
+      if (cDelta !== 0 || rDelta !== 0) {
+        const x = p[0] + cDelta;
+        const y = p[1] + rDelta;
+        if (x >= 0 && x < grid.length && y >= 0 && y < grid[0].length) {
+          if (!["T", "O"].includes(grid[p[0] + cDelta][p[1] + rDelta])) {
+            grid[p[0] + cDelta][p[1] + rDelta] = "O";
+            count++;
+          }
+        }
+      }
+    }
+  }
+  return count;
+}
+
+function countInner(grid: string[][]) {
+  let count = 0;
+  for (const col of grid) {
+    for (const el of col) {
+      if (!["O", "T", "B"].includes(el)) {
+        count++;
+      }
+    }
+  }
+  return count;
 }
