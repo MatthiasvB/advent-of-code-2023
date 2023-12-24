@@ -47,6 +47,31 @@ function getSumOfDistances(locations: Location[]) {
     return distanceSum;
 }
 
+function getEffectiveIndices(grid: string[] | string[][]) {
+    const indices = new Array<number>();
+
+    for (const col of grid) {
+        const lastIndexWithFallback = indices[indices.length - 1] ?? 0;
+        if (col.includes('#')) {
+            indices.push(lastIndexWithFallback + 1);
+        } else {
+            indices.push(lastIndexWithFallback + 1e6);
+        }
+    }
+
+    return indices;
+}
+
 export function solve(grid: string[]) {
     return getSumOfDistances(getLocations(expandColumns(expandRows(grid))));
+}
+
+export function solvePart2(grid: string[]) {
+    const rowIndices = getEffectiveIndices(grid);
+    const transposedGrid = transpose(grid.map(row => row.split('')));
+    const colIndices = getEffectiveIndices(transposedGrid);
+
+    const locations = getLocations(transposedGrid);
+    const expandedLocations = locations.map(loc => ({ x: colIndices[loc.x], y: rowIndices[loc.y] }));
+    return getSumOfDistances(expandedLocations);
 }
