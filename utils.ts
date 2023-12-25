@@ -14,3 +14,11 @@ export function transpose<T>(matrix: T[][]) {
   }
   return newMatrix;
 }
+
+export function xTimesN<T>(x: T, n: number): T[] {
+  const arr = new Array<T>();
+  for (let i = 0; i < n; i++) {
+    arr.push(x);
+  }
+  return arr;
+}
