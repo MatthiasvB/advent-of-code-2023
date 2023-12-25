@@ -1,5 +1,9 @@
 export function sum(numbers: number[]): number {
-  return numbers.reduce((a, b) => a + b);
+  return numbers.reduce((a, b) => a + b, 0);
+}
+
+export function faktor(numbers: number[]): number {
+  return numbers.reduce((a, b) => a * b, 1);
 }
 
 export function transpose<T>(matrix: T[][]) {

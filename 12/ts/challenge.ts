@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { parseChallenge, solve } from "./utils.ts";
+import { parseChallenge, solve, solvePart2 } from "./utils.ts";
 
 const fileName = Deno.args[0]; // first argument
 console.log(`Reading ${fileName}`);
