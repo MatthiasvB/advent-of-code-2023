@@ -1,24 +1,5 @@
 import { faktor, sum, xTimesN } from "../../utils.ts";
 
-// function reduceInvariable(str: string, groups: number[]) {
-
-//     do {
-//         const [newStr, newGroups]
-//     }
-// }
-
-// function reduceInvariableIteration(str: string, groups: number[]) {
-//     let newStr = str;
-//     const newGroups = new Array<number>();
-//     for (const groupSize of groups) {
-//         newStr = str.replace(new RegExp(`[.?]#{${groupSize}[.?]}`), '');
-//         if (newStr = str) {
-//             newGroups.push(groupSize);
-//         }
-//     }
-//     return [newStr, newGroups];
-// }
-
 export function groupsToRegex(groups: number[]) {
   return new RegExp(
     [
@@ -39,52 +20,21 @@ export function groupsToRegexOptimized(groups: number[]) {
   );
 }
 
+export function groupsToRegexOpenEnd(groups: number[]) {
+  return new RegExp(
+    [
+      "^[.?]*",
+      ...groups.map((n) => `[#?]{${n}}`).join("[.?]+"),
+    ].join(""),
+  );
+}
+
 export function getNumberOfCombinations(input: string, regex: RegExp) {
   return x(input, (arg: string) => regex.test(arg));
 }
 
 export function getNumberOfCombinationsOptimized(input: string, regex: RegExp) {
-  const segmentedInput = input.split(/\.+/).filter(el => el.length > 0);
-//   console.log(`Working on: ${segmentedInput.join('.')}`)
-console.log(`Regex is ${regex}`);
-console.log(`Input is ${segmentedInput.join(".")}`);
-const res = faktor(segmentedInput.map((_, idx) => solutionsBySegment(segmentedInput, idx, x => regex.test(x))).map(x => {
-    console.log(x);
-    return x;
-}));
-console.log(`Result is ${res}`);
-  return res;
-}
-
-function solutionsBySegment(segmentedInput: string[], currentSegment: number, cb: (arg: string) => boolean) {
-    const pre = segmentedInput.slice(0, currentSegment).join('.');
-    const post = segmentedInput.slice(currentSegment + 1).join('.');
-    const segment = segmentedInput[currentSegment];
-
-    return xBetterOptimized(pre, segment, post, cb);
-}
-
-function xBetterOptimized(pre: string, segment: string, post: string, cb: (arg: string) => boolean, d = 0): number {
-    const inset = xTimesN('\t', d).join('|');
-    console.log(`${inset}Testing ${pre + "!" + segment + "!" + post}`);
-    if (!cb(pre + "." + segment + "." + post)) {
-        console.log(inset + "Not matching");
-        return 0;
-    }
-
-    if (segment.includes("?")) {
-        const temp = [
-            xBetterOptimized(pre, segment.replace("?", "."), post, cb, d + 1),
-            xBetterOptimized(pre, segment.replace("?", "#"), post, cb, d + 1)
-        ];
-        console.log(`${inset} intermediate: ${temp}`);
-        const res = sum(temp);
-        console.log(`${inset}Got ${res}`);
-        return res;
-    }
-
-    console.log(inset + "Matched!");
-    return 1;
+  return xOptimized(input, (arg: string) => regex.test(arg));
 }
 
 function xOptimized(input: string, cb: (arg: string) => boolean): number {
@@ -121,6 +71,201 @@ export function parseChallenge(input: string) {
   });
 }
 
+enum Consumption {
+  Not,
+  Yes,
+  CouldBe,
+  NotThisRound,
+  ThisOneYes,
+}
+
+interface Segment {
+  segment: string;
+  consumed: Consumption;
+}
+
+interface BrokenGroup {
+  size: number;
+  consumed: Consumption;
+}
+
+interface ConsumableEntry {
+  segments: Segment[];
+  groups: BrokenGroup[];
+}
+
+export function parseChallengeForOptimizedApproach(
+  input: string,
+  numberFolds: number,
+): ConsumableEntry[] {
+  return input.trim().split("\n").map((line) => {
+    const [pattern, groups] = line.split(" ");
+    const parsedGroups = xTimesN(groups, numberFolds).join(",").split(",").map((
+      size,
+    ): BrokenGroup => ({
+      size: +size,
+      consumed: Consumption.Not,
+    }));
+    return {
+      segments: xTimesN(pattern, numberFolds).join("?").split(/\.+/).filter(
+        (s) => !!s.trim().length,
+      ).map((
+        segment,
+      ): Segment => ({ segment, consumed: Consumption.Not })),
+      groups: parsedGroups,
+    };
+  });
+}
+
+export function solveOptimized(entries: ConsumableEntry[]): number {
+  return sum(entries.map((entry) => {
+    const combinations = [0];
+
+    for (const [idx, segment] of entry.segments.entries()) { // iterate segments
+      const notConsumedGroups = entry.groups.filter((g) =>
+        g.consumed !== Consumption.Yes
+      );
+      const regex = groupsToRegexOptimized(
+        notConsumedGroups.map((group) => group.size),
+      );
+      //   console.log("Regex:", regex);
+      const pre = entry.segments.slice(0, idx).filter((s) =>
+        s.consumed !== Consumption.Yes
+      ).map((s) => s.segment).join(".");
+      const post = entry.segments.slice(idx + 1).map((s) => s.segment).join(
+        ".",
+      );
+      for (
+        const candidateSegment of possibleCombinations(
+          pre,
+          segment.segment,
+          post,
+          regex,
+        )
+      ) {
+        const candidate = `${pre}.${candidateSegment}.${post}`;
+        if (regex.test(candidate)) {
+          //   console.log(`Yes: ${candidate}`);
+          combinations[combinations.length - 1] += 1;
+          for (let i = 0; i < notConsumedGroups.length; i++) {
+            const innerRegex = groupsToRegexOpenEnd(
+              notConsumedGroups.slice(0, i + 1).map((g) => g.size),
+            );
+            const matchesSegment = innerRegex.test(candidateSegment);
+            notConsumedGroups[i].consumed = getConsumption(
+              notConsumedGroups[i].consumed,
+              matchesSegment,
+            );
+            if (!matchesSegment) break;
+          }
+        } else {
+          //   console.log(`No : ${candidate}`);
+        }
+      }
+      let segmentDirty = false;
+      for (const group of notConsumedGroups) {
+        switch (group.consumed) {
+          case Consumption.CouldBe: {
+            group.consumed = Consumption.ThisOneYes;
+            break;
+          }
+          case Consumption.NotThisRound: {
+            group.consumed = Consumption.Not;
+            segmentDirty = true;
+            break;
+          }
+        }
+      }
+      if (
+        !segmentDirty &&
+        notConsumedGroups.every((g) =>
+          [Consumption.ThisOneYes, Consumption.Not].includes(g.consumed)
+        )
+      ) {
+        segment.consumed = Consumption.Yes;
+        notConsumedGroups.forEach((g) => {
+          g.consumed = g.consumed === Consumption.ThisOneYes
+            ? Consumption.Yes
+            : g.consumed;
+          //   console.log("Cutting a group:", g.size);
+        });
+        // console.log("Cutting a segment");
+        combinations.push(0);
+      }
+      notConsumedGroups.forEach((g) => {
+        g.consumed = g.consumed === Consumption.ThisOneYes
+          ? Consumption.Not
+          : g.consumed;
+      });
+    }
+    console.log(combinations);
+    return faktor(combinations.filter((c) => !!c));
+  }));
+}
+
+function getConsumption(current: Consumption, nowConsumed: boolean) {
+  switch (current) {
+    case Consumption.Not:
+      return nowConsumed ? Consumption.CouldBe : Consumption.NotThisRound;
+    case Consumption.Yes:
+      return Consumption.Yes;
+    case Consumption.CouldBe:
+      return nowConsumed ? Consumption.CouldBe : Consumption.NotThisRound;
+    case Consumption.NotThisRound:
+      return Consumption.NotThisRound;
+    case Consumption.ThisOneYes: {
+      throw new Error("Trying to determine new state at incorrect moment");
+    }
+    default: {
+      // deno-lint-ignore no-unused-vars
+      const exhaustivenessCheck: never = current;
+    }
+  }
+  throw new Error("Non exhaustive switch-case");
+}
+
+function* possibleCombinations(
+  pre: string,
+  segment: string,
+  post: string,
+  regex: RegExp,
+): Generator<string> {
+  if (!segment.includes("?")) {
+    // console.log(`Segment is ${segment}`);
+    // console.log("Yielding");
+    yield segment;
+    return;
+  }
+
+  if (!regex.test(`${pre}.${segment}.${post}`)) {
+    return;
+  }
+
+  for (
+    const inner of possibleCombinations(
+      pre,
+      segment.replace("?", "."),
+      post,
+      regex,
+    )
+  ) {
+    yield inner;
+  }
+
+  for (
+    const inner of possibleCombinations(
+      pre,
+      segment.replace("?", "#"),
+      post,
+      regex,
+    )
+  ) {
+    yield inner;
+  }
+
+  return;
+}
+
 export function unfold(entries: Entry[], times: number) {
   return entries.map((entry) => unfoldEntry(entry, times));
 }
@@ -145,16 +290,100 @@ function solveEntry(entry: Entry) {
   return getNumberOfCombinationsOptimized(entry.pattern, regex);
 }
 
-export function solvePart2(entries: Entry[]) {
-  return sum(entries.map((entry) => {
-    const timesTwo = unfoldEntry(entry, 2);
-    const timesThree = unfoldEntry(entry, 3);
-    const twoSolution = solveEntry(timesTwo);
-    const threeSolution = solveEntry(timesThree);
-    const fiveSolutionMaybe = ((threeSolution / twoSolution) % 1 === 0)
-      ? twoSolution * (threeSolution / twoSolution) ** 3
-      : solveEntry(unfoldEntry(entry, 5));
-    console.log("Found part solution:", fiveSolutionMaybe);
-    return fiveSolutionMaybe;
-  }));
+interface HeadState {
+  go: (char: string) => -1 | 0 | 1;
+  numberOfParallelHeads: number;
+}
+
+class StateMachine {
+  private states = new Array<HeadState>();
+
+  private needBroken(char: string) {
+    if (char === "#") return 1;
+    return -1;
+  }
+
+  private mayBroken(char: string) {
+    switch (char) {
+      case "#":
+        return 1;
+      case ".":
+        return 0;
+      default:
+        return -1;
+    }
+  }
+
+  private needWorking(char: string) {
+    if (char === ".") {
+      return 1;
+    }
+    return -1;
+  }
+
+  private isDone(char: string) {
+    if (char === ".") {
+      return 0;
+    }
+    return -1;
+  }
+
+  constructor(groups: number[]) {
+    this.states.push({ go: this.mayBroken, numberOfParallelHeads: 1 });
+    for (let i = 0; i < groups.length - 1; i++) {
+      this.states.push(
+        ...xTimesN(this.needBroken, groups[i] - 1).map((fun): HeadState => ({
+          go: fun,
+          numberOfParallelHeads: 0,
+        })),
+        { go: this.needWorking, numberOfParallelHeads: 0 },
+        { go: this.mayBroken, numberOfParallelHeads: 0 },
+      );
+    }
+    this.states.push(
+      ...xTimesN(this.needBroken, groups.at(-1)! - 1).map((fun): HeadState => ({
+        go: fun,
+        numberOfParallelHeads: 0,
+      })),
+      { go: this.isDone, numberOfParallelHeads: 0 },
+    );
+  }
+
+  public getCombinations(pattern: string) {
+    for (const char of pattern) {
+      const charOptions = char === "?" ? [".", "#"] : [char];
+
+      const walk = charOptions.map((char) => {
+        return this.states.map((state, idx) => {
+          return {
+            from: idx,
+            res: state.go(char),
+            num: state.numberOfParallelHeads,
+          };
+        });
+      });
+
+      this.states.forEach(state => state.numberOfParallelHeads = 0);
+
+      walk.forEach(option => {
+        option.forEach(el => {
+            if (el.res === 1) {
+                this.states[el.from + 1].numberOfParallelHeads += el.num;
+            } else if (el.res === 0) {
+              this.states[el.from].numberOfParallelHeads += el.num;
+            }
+        })
+      });
+      // console.log("Heads:", this.states.map(s => s.numberOfParallelHeads));
+    }
+    return this.states.at(-1)!.numberOfParallelHeads;
+  }
+}
+
+export function solveByStateMachine(entries: Entry[]) {
+    return sum(entries.map(entry => {
+        const stateMachine = new StateMachine(entry.groups);
+        const numberOfCombinations = stateMachine.getCombinations(entry.pattern);
+        return numberOfCombinations;
+    }));
 }
