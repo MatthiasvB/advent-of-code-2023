@@ -43,7 +43,7 @@ NIX_BINTOOLS_WRAPPER_TARGET_BUILD_x86_64_unknown_linux_gnu='1'
 export NIX_BINTOOLS_WRAPPER_TARGET_BUILD_x86_64_unknown_linux_gnu
 NIX_BINTOOLS_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu='1'
 export NIX_BINTOOLS_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu
-NIX_BUILD_CORES='20'
+NIX_BUILD_CORES='16'
 export NIX_BUILD_CORES
 NIX_CC='/nix/store/zlzz2z48s7ry0hkl55xiqp5a73b4mzrg-gcc-wrapper-12.3.0'
 export NIX_CC
@@ -61,7 +61,7 @@ NIX_ENFORCE_NO_NATIVE='1'
 export NIX_ENFORCE_NO_NATIVE
 NIX_HARDENING_ENABLE='fortify fortify3 stackprotector pic strictoverflow format relro bindnow'
 export NIX_HARDENING_ENABLE
-NIX_LDFLAGS='-rpath /home/matthias/Documents/development/advent-of-code-23/01/rust/outputs/out/lib  -L/nix/store/hx8gwm8x6v73iyxhn2lmn887bzk9q82r-rust-default-1.73.0/lib -L/nix/store/32k46pb4w06qbmwp4ln6pdfv2ibbfjgl-jq-1.7-lib/lib -L/nix/store/g1cigbjr62y1wzff83j3s4fj3hnd3j6g-zstd-1.5.5/lib -L/nix/store/hx8gwm8x6v73iyxhn2lmn887bzk9q82r-rust-default-1.73.0/lib -L/nix/store/32k46pb4w06qbmwp4ln6pdfv2ibbfjgl-jq-1.7-lib/lib -L/nix/store/g1cigbjr62y1wzff83j3s4fj3hnd3j6g-zstd-1.5.5/lib'
+NIX_LDFLAGS='-rpath /home/matthias/Documents/development/private/advent-of-code-23/01/rust/outputs/out/lib  -L/nix/store/hx8gwm8x6v73iyxhn2lmn887bzk9q82r-rust-default-1.73.0/lib -L/nix/store/32k46pb4w06qbmwp4ln6pdfv2ibbfjgl-jq-1.7-lib/lib -L/nix/store/g1cigbjr62y1wzff83j3s4fj3hnd3j6g-zstd-1.5.5/lib -L/nix/store/hx8gwm8x6v73iyxhn2lmn887bzk9q82r-rust-default-1.73.0/lib -L/nix/store/32k46pb4w06qbmwp4ln6pdfv2ibbfjgl-jq-1.7-lib/lib -L/nix/store/g1cigbjr62y1wzff83j3s4fj3hnd3j6g-zstd-1.5.5/lib'
 export NIX_LDFLAGS
 NIX_LDFLAGS_FOR_BUILD=' -L/nix/store/hx8gwm8x6v73iyxhn2lmn887bzk9q82r-rust-default-1.73.0/lib -L/nix/store/32k46pb4w06qbmwp4ln6pdfv2ibbfjgl-jq-1.7-lib/lib -L/nix/store/g1cigbjr62y1wzff83j3s4fj3hnd3j6g-zstd-1.5.5/lib -L/nix/store/hx8gwm8x6v73iyxhn2lmn887bzk9q82r-rust-default-1.73.0/lib -L/nix/store/32k46pb4w06qbmwp4ln6pdfv2ibbfjgl-jq-1.7-lib/lib -L/nix/store/g1cigbjr62y1wzff83j3s4fj3hnd3j6g-zstd-1.5.5/lib -L/nix/store/hx8gwm8x6v73iyxhn2lmn887bzk9q82r-rust-default-1.73.0/lib -L/nix/store/32k46pb4w06qbmwp4ln6pdfv2ibbfjgl-jq-1.7-lib/lib -L/nix/store/g1cigbjr62y1wzff83j3s4fj3hnd3j6g-zstd-1.5.5/lib'
 export NIX_LDFLAGS_FOR_BUILD
@@ -162,7 +162,7 @@ declare -a envHostHostHooks=('ccWrapper_addCVars' 'bintoolsWrapper_addLDVars' )
 declare -a envHostTargetHooks=('ccWrapper_addCVars' 'bintoolsWrapper_addLDVars' )
 declare -a envTargetTargetHooks=()
 declare -a fixupOutputHooks=('if [ -z "${dontPatchELF-}" ]; then patchELF "$prefix"; fi' 'if [[ -z "${noAuditTmpdir-}" && -e "$prefix" ]]; then auditTmpdir "$prefix"; fi' 'if [ -z "${dontGzipMan-}" ]; then compressManPages "$prefix"; fi' '_moveLib64' '_moveSbin' '_moveSystemdUserUnits' 'patchShebangsAuto' '_pruneLibtoolFiles' '_doStrip' )
-guess='20'
+guess='16'
 initialPath='/nix/store/vwkvhj69z4qqgmpa2lwm97kabf12p26r-coreutils-9.3 /nix/store/qyzfglbrqb5ck0dgljplin2bvc4995w7-findutils-4.9.0 /nix/store/x6y2i213maj6ibcn0qzgg7graif5qcvi-diffutils-3.10 /nix/store/g5p3ky90xa05ggg5szyb0pbbl2vp7n03-gnused-4.9 /nix/store/p2r51wfg9m3ga7pp7avslpfhfa7w5y83-gnugrep-3.11 /nix/store/cmn958i8qym0qvmvydl23fh3bm3fbhl7-gawk-5.2.2 /nix/store/f5qy259g9b4qh0hwz22z5j5bq3m53cpv-gnutar-1.35 /nix/store/kmr52zpw7wazxywqvzgpdx0vnn9prd3v-gzip-1.13 /nix/store/w1mar48lwkavwy64mvj567lwaqnm2l11-bzip2-1.0.8-bin /nix/store/9dh2csn531by6b1vr9jv85v4k17xwkid-gnumake-4.4.1 /nix/store/lf0wpjrj8yx4gsmw2s3xfl58ixmqk8qa-bash-5.2-p15 /nix/store/pinwlz7294p37d2sbkdpjildzxii42vv-patch-2.7.6 /nix/store/skrzk0g88jf9rg28labqsyxv7gg357q1-xz-5.4.4-bin /nix/store/h5pshzq92r2xcv6w1p10cmkar4nyv0xp-file-5.45'
 mesonFlags=''
 export mesonFlags
@@ -170,7 +170,7 @@ name='nix-shell-env'
 export name
 nativeBuildInputs='/nix/store/hx8gwm8x6v73iyxhn2lmn887bzk9q82r-rust-default-1.73.0 /nix/store/hx8gwm8x6v73iyxhn2lmn887bzk9q82r-rust-default-1.73.0 /nix/store/hx8gwm8x6v73iyxhn2lmn887bzk9q82r-rust-default-1.73.0 /nix/store/hx8gwm8x6v73iyxhn2lmn887bzk9q82r-rust-default-1.73.0 /nix/store/9zb5ydagcd4caaihq2ih4d2brw53mhvw-installFromCargoBuildLogHook /nix/store/k34sknk2la1n2ipfs17xsrki06w9ghkf-jq-1.7-dev /nix/store/dghfrc3vaca3n5h97q40s4wlacw531aj-removeReferencesToVendoredSourcesHook /nix/store/hx8gwm8x6v73iyxhn2lmn887bzk9q82r-rust-default-1.73.0 /nix/store/d3gqimzbdd1yp1jmbsv227cclhmayxla-cargoHelperFunctionsHook /nix/store/f9fcgrrd5qkj5k6c0q9n9ypkd5gskxdr-configureCargoCommonVarsHook /nix/store/x40ab1iz9pddvqxslhi8wca9pgk2f0vi-configureCargoVendoredDepsHook /nix/store/zasylwmbfczw2rhkqn7w3dkcfiljanra-inheritCargoArtifactsHook /nix/store/q42fx8ak10i42hwzar0qpa3whrl0g8d2-installCargoArtifactsHook /nix/store/kcqsg25b7i7da4jmpm3f3x6vxz090z58-replaceCargoLockHook /nix/store/i9dgn6ymv732q5gzw669y6y9zxsv3x2z-rsync-3.2.7 /nix/store/d5s4w1j5xv2g65iql9xkf7chp12zc316-zstd-1.5.5-dev'
 export nativeBuildInputs
-out='/home/matthias/Documents/development/advent-of-code-23/01/rust/outputs/out'
+out='/home/matthias/Documents/development/private/advent-of-code-23/01/rust/outputs/out'
 export out
 outputBin='out'
 outputDev='out'
@@ -202,7 +202,7 @@ preConfigurePhases=' updateAutotoolsGnuConfigScriptsPhase'
 declare -a preFixupHooks=('_moveToShare' '_multioutDocs' '_multioutDevs' )
 preferLocalBuild='1'
 export preferLocalBuild
-prefix='/home/matthias/Documents/development/advent-of-code-23/01/rust/outputs/out'
+prefix='/home/matthias/Documents/development/private/advent-of-code-23/01/rust/outputs/out'
 declare -a propagatedBuildDepFiles=('propagated-build-build-deps' 'propagated-native-build-inputs' 'propagated-build-target-deps' )
 propagatedBuildInputs=''
 export propagatedBuildInputs
@@ -2160,8 +2160,8 @@ updateSourceDateEpoch ()
         fi;
     fi
 }
-PATH="$PATH:$nix_saved_PATH"
-XDG_DATA_DIRS="$XDG_DATA_DIRS:$nix_saved_XDG_DATA_DIRS"
+PATH="$PATH${nix_saved_PATH:+:$nix_saved_PATH}"
+XDG_DATA_DIRS="$XDG_DATA_DIRS${nix_saved_XDG_DATA_DIRS:+:$nix_saved_XDG_DATA_DIRS}"
 export NIX_BUILD_TOP="$(mktemp -d -t nix-shell.XXXXXX)"
 export TMP="$NIX_BUILD_TOP"
 export TMPDIR="$NIX_BUILD_TOP"
