@@ -132,7 +132,10 @@ export class Walker {
 
       // Doing assertion because this is performance-critical and not a large project
       currents = currents.map(
-        (current) => jumpMap.get(current)![fullLengthJumps],
+        (current) => {
+          // console.log(`Jumping by ${fullLengthJumps} with maximum jumps at ${jumpMap.get(current)?.length}`)
+          return jumpMap.get(current)![fullLengthJumps];
+        }
       );
 
       debugIter++;
@@ -187,23 +190,34 @@ Last one was by ${fullLengthJumps} full length jumps. That's ${
 
   private getJumMap() {
     const allKeys = [...this.leftRightMap.keys()];
+    console.log(`Number of keys: ${allKeys.length}`);
+    
     const allDistancesToZ = allKeys.map((key) => this.walkFromTo(key, /Z$/));
 
     const maxDistance = Math.max(...allDistancesToZ);
     const maxJumpableDistance = maxDistance -
       (maxDistance % this.walkInstructions.length);
+      // console.log(`Max jumpable distance: ${maxJumpableDistance}`);
+      
 
     const jumpMap = allKeys.map((key) => {
       const jumpList = new Array<string>(key);
       let current = key;
       for (let i = 0; i < maxJumpableDistance; i++) {
+        
         // assertion!
         const next = this.leftRightMap.get(current)![
           this.walkInstructions[i % this.walkInstructions.length] as "L" | "R"
         ];
-        if ((i + 1) % this.walkInstructions.length === 0) jumpList.push(next);
+        if ((i + 1) % this.walkInstructions.length === 0) {
+          // console.log(`${(i + 1)} % ${this.walkInstructions.length} === 0`);
+          
+          jumpList.push(next);
+        }
         current = next;
       }
+      console.log(`Jump list has length: ${jumpList.length}`);
+      
       return [key, jumpList] as const;
     });
     return new Map(jumpMap);

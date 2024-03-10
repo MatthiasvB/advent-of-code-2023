@@ -22,5 +22,5 @@ pub fn least_common_multiple(numbers: Vec<isize>) -> isize {
     // numbers.iter().fold(|multiple, num| {
     //     lcm(multiple, num), 1
     // })
-    numbers.iter()
+    numbers.iter().
   }
