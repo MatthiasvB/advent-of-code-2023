@@ -1,7 +1,9 @@
 use core::panic;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+
+type MyMap<K, V> = HashMap::<K, V>;
 
 lazy_static! {
     static ref END_IN_Z: Regex = Regex::new("Z$").unwrap();
@@ -22,7 +24,7 @@ pub struct Itertool {
     next_z: usize,
 }
 
-type ItertoolMap = BTreeMap<str, Itertool>;
+type ItertoolMap = MyMap<String, Itertool>;
 
 // inspired by https://stackoverflow.com/questions/31302054/how-to-find-the-least-common-multiple-of-a-range-of-numbers
 pub fn least_common_multiple(numbers: Vec<isize>) -> isize {
@@ -43,14 +45,14 @@ pub fn least_common_multiple(numbers: Vec<isize>) -> isize {
 
 pub struct Walker {
     walk_instructions: String,
-    left_right_map: BTreeMap<String, LeftRight>, // needed?
-    itertools: BTreeMap<String, Itertool>,
+    left_right_map: MyMap<String, LeftRight>, // needed?
+    itertools: MyMap<String, Itertool>,
 }
 
 impl Walker {
-    fn new(walk_instructions: String, left_right_map: BTreeMap<String, LeftRight>) -> Self {
+    fn new(walk_instructions: String, left_right_map: MyMap<String, LeftRight>) -> Self {
         println!("Creating new Walker");
-        let mut itertools = BTreeMap::new();
+        let mut itertools = ItertoolMap::new();
         itertools.extend(left_right_map.keys().map(|key| {
             // println!("Computing target for {}", key);
             let full_range_target =
@@ -96,59 +98,63 @@ impl Walker {
         let jump_map = self.get_jump_map();
         let mut steps = 0;
 
-        let mut currents = self.get_all_locations_matching(&END_IN_A);
+        let rust_temporary = self.get_all_locations_matching(&END_IN_A);
+        let mut currents = rust_temporary.iter().map(|x| { x }).collect();
+
+        let mut last = 0;
+        let print_every = 50_000_000_000;
+        // exit if overshoot
+        let known_correct_answer = 10668805667831;
+
+        let walk_instructions_length = self.walk_instructions.len(); // optimization
 
         while !self.have_same_z_distance(&currents) {
             let max_z_distance = self.max_z_distance(&currents);
-            let full_length_jumps = max_z_distance / self.walk_instructions.len();
+            let full_length_jumps = max_z_distance / walk_instructions_length;
 
             if full_length_jumps == 0 {
                 panic!("Stuck!")
             }
             // println!("Doing {full_length_jumps} jumps");
 
-            steps += full_length_jumps * self.walk_instructions.len();
+            steps += full_length_jumps * walk_instructions_length;
 
-            currents = currents
-                .iter()
-                .map(
-                    // FIXME: avoid unwraps and to_owned()
-                    |current| {
-                        jump_map
-                            .get(current)
-                            .map(|c| {
-                                // println!("length is {}", c.len());
-                                c.get(full_length_jumps).unwrap()
-                            }.to_owned())
-                            .unwrap()
-                    },
-                )
-                .collect();
+            if steps > known_correct_answer {
+                println!("Overshot to {steps} which is larger than correct answer {known_correct_answer}");
+                return steps;
+            }
+            if steps - last >= print_every {
+                println!("Now at {steps}");
+                last = steps;
+            }
+
+            for current in &mut currents { 
+                *current = &jump_map.get(*current).unwrap()[full_length_jumps]; 
+            }
         }
 
-        steps + self.itertools.get(&currents[0]).unwrap().end_in_z_after
+        steps + self.itertools.get(currents[0]).unwrap().end_in_z_after
     }
 
-    fn max_z_distance(self: &Self, currents: &Vec<String>) -> usize {
-        // FIXME: get rid of .to_owned()
+    fn max_z_distance(self: &Self, currents: &Vec<&String>) -> usize {
         currents
             .iter()
-            .map(|current| self.itertools.get(current).map(|c| c.next_z).unwrap_or(0))
+            .map(|current| self.itertools.get(*current).map(|c| c.next_z).unwrap_or(0))
             .max()
             .unwrap_or(0)
     }
 
-    fn have_same_z_distance(self: &Self, keys: &Vec<String>) -> bool {
-        let z_distance_0 = self.itertools.get(&keys[0]).unwrap().end_in_z_after;
+    fn have_same_z_distance(self: &Self, keys: &Vec<&String>) -> bool {
+        let z_distance_0 = self.itertools.get(keys[0]).unwrap().end_in_z_after;
         for key in keys {
-            if self.itertools.get(key).unwrap().end_in_z_after != z_distance_0 {
+            if self.itertools.get(*key).unwrap().end_in_z_after != z_distance_0 {
                 return false;
             }
         }
         true
     }
 
-    fn get_jump_map(self: &Self) -> BTreeMap<String, Vec<String>> {
+    fn get_jump_map(self: &Self) -> MyMap<String, Vec<String>> {
         println!("Computing jump map");
         let all_keys = self.left_right_map.keys();
         println!("Number of keys: {}", self.left_right_map.keys().len());
@@ -164,7 +170,7 @@ impl Walker {
         let max_distance = all_distances_to_z.clone().max().unwrap();
         let max_jumpable_distance = max_distance - (max_distance % self.walk_instructions.len());
         println!("Max jumpable distance: {max_jumpable_distance}");
-        let mut jump_map = BTreeMap::new();
+        let mut jump_map = MyMap::new();
         jump_map.extend(all_keys.map(|key| {
             let mut jump_list: Vec<String> = vec![key.to_owned()];
             let mut current = key;
@@ -197,7 +203,7 @@ fn walk_from_to(
     from: &str,
     to: &Regex,
     walk_instructions: &str,
-    left_right_map: &BTreeMap<String, LeftRight>,
+    left_right_map: &MyMap<String, LeftRight>,
     force_walk: &bool,
 ) -> usize {
     let mut current = from;
@@ -221,7 +227,7 @@ fn walk_from_to(
 fn target_after_full_rl_range(
     from: &str,
     walk_instructions: &str,
-    lr_map: &BTreeMap<String, LeftRight>,
+    lr_map: &MyMap<String, LeftRight>,
 ) -> String {
     let mut current = from;
 
@@ -240,7 +246,7 @@ fn target_after_full_rl_range(
 pub fn parse_challenge(input: &str) -> Walker {
     match input.trim().split("\n\n").collect::<Vec<&str>>()[0..2] {
         [lr, raw_map] => {
-            let mut map = BTreeMap::new();
+            let mut map = MyMap::new();
             raw_map
                 .split("\n")
                 .map(|line| {
