@@ -131,12 +131,9 @@ export class Walker {
       steps += fullLengthJumps * this.walkInstructions.length;
 
       // Doing assertion because this is performance-critical and not a large project
-      currents = currents.map(
-        (current) => {
-          // console.log(`Jumping by ${fullLengthJumps} with maximum jumps at ${jumpMap.get(current)?.length}`)
-          return jumpMap.get(current)![fullLengthJumps];
-        }
-      );
+      for (let i = 0; i < currents.length; i++) {
+        currents[i] = jumpMap.get(currents[i])![fullLengthJumps]
+      }
 
       debugIter++;
       if (debug) {
