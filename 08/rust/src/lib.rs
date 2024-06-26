@@ -2,8 +2,9 @@ use core::panic;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::{BTreeMap, HashMap};
+use fnv::FnvBuildHasher;
 
-type MyMap<K, V> = HashMap::<K, V>;
+type MyMap<K, V> = HashMap<K, V, FnvBuildHasher>;
 
 lazy_static! {
     static ref END_IN_Z: Regex = Regex::new("Z$").unwrap();
@@ -52,7 +53,7 @@ pub struct Walker {
 impl Walker {
     fn new(walk_instructions: String, left_right_map: MyMap<String, LeftRight>) -> Self {
         println!("Creating new Walker");
-        let mut itertools = ItertoolMap::new();
+        let mut itertools = ItertoolMap::default();
         itertools.extend(left_right_map.keys().map(|key| {
             // println!("Computing target for {}", key);
             let full_range_target =
@@ -103,26 +104,19 @@ impl Walker {
 
         let mut last = 0;
         let print_every = 50_000_000_000;
-        // exit if overshoot
-        let known_correct_answer = 10668805667831;
+        
 
         let walk_instructions_length = self.walk_instructions.len(); // optimization
 
         while !self.have_same_z_distance(&currents) {
-            let max_z_distance = self.max_z_distance(&currents);
-            let full_length_jumps = max_z_distance / walk_instructions_length;
+            let full_length_jumps = self.max_z_distance(&currents) / walk_instructions_length;
 
             if full_length_jumps == 0 {
                 panic!("Stuck!")
             }
-            // println!("Doing {full_length_jumps} jumps");
 
             steps += full_length_jumps * walk_instructions_length;
 
-            if steps > known_correct_answer {
-                println!("Overshot to {steps} which is larger than correct answer {known_correct_answer}");
-                return steps;
-            }
             if steps - last >= print_every {
                 println!("Now at {steps}");
                 last = steps;
@@ -154,6 +148,26 @@ impl Walker {
         true
     }
 
+    /**
+     * Do two types of analyses at once, for performance optimization. Doesn't seem to do much, though
+     */
+    fn combined_have_same_z_distance_and_max_z_distance(self: &Self, keys: &Vec<&String>) -> (bool, usize) {
+        let z_distance_0 = self.itertools.get(keys[0]).unwrap().end_in_z_after;
+        let mut current_z_distance;
+        let mut max_z_distance = z_distance_0;
+        let mut have_same_distance = true;
+        for key in keys {
+            current_z_distance = self.itertools.get(*key).unwrap().end_in_z_after;
+            if have_same_distance && current_z_distance != z_distance_0 {
+                have_same_distance = false;
+            }
+            if (current_z_distance > max_z_distance) {
+                max_z_distance = current_z_distance;
+            }
+        }
+        (have_same_distance, max_z_distance)
+    }
+
     fn get_jump_map(self: &Self) -> MyMap<String, Vec<String>> {
         println!("Computing jump map");
         let all_keys = self.left_right_map.keys();
@@ -170,7 +184,7 @@ impl Walker {
         let max_distance = all_distances_to_z.clone().max().unwrap();
         let max_jumpable_distance = max_distance - (max_distance % self.walk_instructions.len());
         println!("Max jumpable distance: {max_jumpable_distance}");
-        let mut jump_map = MyMap::new();
+        let mut jump_map = MyMap::default();
         jump_map.extend(all_keys.map(|key| {
             let mut jump_list: Vec<String> = vec![key.to_owned()];
             let mut current = key;
@@ -246,7 +260,7 @@ fn target_after_full_rl_range(
 pub fn parse_challenge(input: &str) -> Walker {
     match input.trim().split("\n\n").collect::<Vec<&str>>()[0..2] {
         [lr, raw_map] => {
-            let mut map = MyMap::new();
+            let mut map = MyMap::default();
             raw_map
                 .split("\n")
                 .map(|line| {
