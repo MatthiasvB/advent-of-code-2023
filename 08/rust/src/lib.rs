@@ -2,7 +2,10 @@ use core::panic;
 use fnv::FnvBuildHasher;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::{collections::{hash_map::RandomState, HashMap}, hash::Hash};
+use std::{
+    collections::{hash_map::RandomState, HashMap},
+    hash::Hash,
+};
 
 /**
  * Public interface of a solver for the Advent of Code 2023 day 08 challenge part two.
@@ -67,7 +70,7 @@ trait AOC8Parser {
     ) -> usize {
         let mut current = from;
         let mut steps = 0;
-    
+
         while !to.is_match(current) || (*force_walk && steps == 0) {
             let next_rl_instruction =
                 walk_instructions.as_bytes()[steps % walk_instructions.len()] as char;
@@ -77,13 +80,11 @@ trait AOC8Parser {
             } else {
                 &next_lr.right
             };
-    
             steps += 1;
         }
-    
         steps
     }
-    
+
     fn get_all_locations_matching(
         matcher: &Regex,
         left_right_map: &MyMap<String, LeftRight>,
@@ -99,7 +100,7 @@ trait AOC8Parser {
 /**
  * This trait provides a general method to walk through all the steps and find the problem solution.
  * This implementation works irrespective of the underlying data structures.
- * 
+ *
  * Only certain getters for the data structures must be provided, and the structures themselves must implement
  * the common `Accessor` trait
  */
@@ -134,7 +135,7 @@ trait AOC8Walker<K> {
             }
 
             for current in &mut currents {
-                *current = &self.get_jump_map().access(*current)[full_length_jumps];
+                *current = &self.get_jump_map().access(current)[full_length_jumps];
             }
         }
 
@@ -161,8 +162,9 @@ trait AOC8Walker<K> {
 }
 
 /**
- * Faster map with "custom" hasher. But it's also easy to use, for example, a BTreeMap instead
- */ 
+ * Faster map with "custom" hasher.
+ * Replace with any map implementation if you wish.
+ */
 type MyMap<K, V> = HashMap<K, V, FnvBuildHasher>;
 // type MyMap<K, V> = BTreeMap<K, V>;
 
@@ -195,7 +197,9 @@ trait Accessor<K, V> {
 }
 
 impl<K, V> Accessor<&K, V> for MyMap<K, V>
-    where K: PartialEq + Eq + Hash {
+where
+    K: PartialEq + Eq + Hash,
+{
     fn access(self: &Self, key: &K) -> &V {
         self.get(key).unwrap()
     }
@@ -213,17 +217,14 @@ pub struct Walker {
  * between implementations
  */
 impl Walker {
-    fn create_jump_map(left_right_map: &MyMap<String, LeftRight>, walk_instructions: &str) -> JumpMap {
+    fn create_jump_map(
+        left_right_map: &MyMap<String, LeftRight>,
+        walk_instructions: &str,
+    ) -> JumpMap {
         println!("Computing jump map");
         let all_keys = left_right_map.keys();
         let all_distances_to_z = all_keys.clone().map(|key| {
-            Self::walk_from_to(
-                &key,
-                &END_IN_Z,
-                walk_instructions,
-                left_right_map,
-                &false,
-            )
+            Self::walk_from_to(&key, &END_IN_Z, walk_instructions, left_right_map, &false)
         });
         let max_distance = all_distances_to_z.max().unwrap();
         let max_jumpable_distance = max_distance - (max_distance % walk_instructions.len());
@@ -260,7 +261,8 @@ impl AOC8Solver for Walker {
             let end_in_z_after =
                 Self::walk_from_to(key, &END_IN_Z, &walk_instructions, &left_right_map, &false);
 
-            let next_z = Self::walk_from_to(key, &END_IN_Z, &walk_instructions, &left_right_map, &true);
+            let next_z =
+                Self::walk_from_to(key, &END_IN_Z, &walk_instructions, &left_right_map, &true);
             (
                 key.to_owned(),
                 Itertool {
@@ -306,7 +308,7 @@ impl AOC8Walker<String> for Walker {
 type PowerItertoolMap = Vec<Itertool>;
 type PowerJumpMap = Vec<Vec<usize>>;
 
-impl <V> Accessor<&usize, V> for Vec<V> {
+impl<V> Accessor<&usize, V> for Vec<V> {
     fn access(self: &Self, key: &usize) -> &V {
         &self[*key]
     }
@@ -319,7 +321,6 @@ pub struct PowerWalker {
     jump_map: PowerJumpMap,
 }
 
-
 impl PowerWalker {
     fn create_jump_map(
         walk_instructions: &str,
@@ -327,9 +328,9 @@ impl PowerWalker {
         str_to_usize: &HashMap<String, usize>,
     ) -> PowerJumpMap {
         let all_keys = left_right_map.keys();
-        let all_distances_to_z = all_keys
-            .clone()
-            .map(|key| Self::walk_from_to(&key, &END_IN_Z, walk_instructions, left_right_map, &false));
+        let all_distances_to_z = all_keys.clone().map(|key| {
+            Self::walk_from_to(&key, &END_IN_Z, walk_instructions, left_right_map, &false)
+        });
         let max_distance = all_distances_to_z.max().unwrap();
         let max_jumpable_distance = max_distance - (max_distance % walk_instructions.len());
         println!("Max jumpable distance: {max_jumpable_distance}");
@@ -339,10 +340,6 @@ impl PowerWalker {
                 let mut current = key;
                 for (i, lr) in (0..max_jumpable_distance).zip(walk_instructions.chars().cycle()) {
                     let next_instruction = left_right_map.get(current).unwrap();
-                    let lr = walk_instructions
-                        .chars()
-                        .nth(i % walk_instructions.len())
-                        .unwrap();
                     let next = if lr == 'L' {
                         &next_instruction.left
                     } else {
@@ -377,7 +374,8 @@ impl AOC8Solver for PowerWalker {
         itertools.extend(left_right_map.keys().map(|key| {
             let end_in_z_after =
                 Self::walk_from_to(key, &END_IN_Z, &walk_instructions, &left_right_map, &false);
-            let next_z = Self::walk_from_to(key, &END_IN_Z, &walk_instructions, &left_right_map, &true);
+            let next_z =
+                Self::walk_from_to(key, &END_IN_Z, &walk_instructions, &left_right_map, &true);
             Itertool {
                 end_in_z_after,
                 next_z,
@@ -404,7 +402,6 @@ impl AOC8Solver for PowerWalker {
         self.walk_by_jump_map()
     }
 }
-
 
 impl AOC8Walker<usize> for PowerWalker {
     fn get_walk_instructions_len(self: &Self) -> usize {
