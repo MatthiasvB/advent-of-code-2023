@@ -2,7 +2,7 @@ use core::panic;
 use fnv::FnvBuildHasher;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::collections::{hash_map::RandomState, HashMap};
+use std::{collections::{hash_map::RandomState, HashMap}, hash::Hash};
 
 /**
  * Public interface of a solver for the Advent of Code 2023 day 08 challenge part two.
@@ -194,14 +194,9 @@ trait Accessor<K, V> {
     fn access(self: &Self, key: K) -> &V;
 }
 
-impl Accessor<&String, Itertool> for ItertoolMap {
-    fn access(self: &Self, key: &String) -> &Itertool {
-        self.get(key).unwrap()
-    }
-}
-
-impl Accessor<&String, Vec<String>> for JumpMap {
-    fn access(self: &Self, key: &String) -> &Vec<String> {
+impl<K, V> Accessor<&K, V> for MyMap<K, V>
+    where K: PartialEq + Eq + Hash {
+    fn access(self: &Self, key: &K) -> &V {
         self.get(key).unwrap()
     }
 }
@@ -312,29 +307,20 @@ impl AOC8Walker<String> for Walker {
     }
 }
 
-
+impl <V> Accessor<&usize, V> for Vec<V> {
+    fn access(self: &Self, key: &usize) -> &V {
+        &self[*key]
+    }
+}
 
 type PowerItertoolMap = Vec<Itertool>;
 type PowerJumpMap = Vec<Vec<usize>>;
-
-impl Accessor<&usize, Itertool> for PowerItertoolMap {
-    fn access(self: &Self, key: &usize) -> &Itertool {
-        &self[*key]
-    }
-}
-
-impl Accessor<&usize, Vec<usize>> for PowerJumpMap {
-    fn access(self: &Self, key: &usize) -> &Vec<usize> {
-        &self[*key]
-    }
-}
-
 
 pub struct PowerWalker {
     walk_instructions_len: usize,
     itertools: Vec<Itertool>,
     start_positions: Vec<usize>,
-    jump_map: Vec<Vec<usize>>,
+    jump_map: PowerJumpMap,
 }
 
 
@@ -343,7 +329,7 @@ impl PowerWalker {
         walk_instructions: &str,
         left_right_map: &MyMap<String, LeftRight>,
         str_to_usize: &HashMap<String, usize>,
-    ) -> Vec<Vec<usize>> {
+    ) -> PowerJumpMap {
         let all_keys = left_right_map.keys();
         let all_distances_to_z = all_keys
             .clone()
@@ -352,7 +338,7 @@ impl PowerWalker {
         let max_jumpable_distance = max_distance - (max_distance % walk_instructions.len());
         println!("Max jumpable distance: {max_jumpable_distance}");
         // let mut jump_map = MyMap::default();
-        let jump_map: Vec<Vec<usize>> = all_keys
+        let jump_map = all_keys
             .map(|key| {
                 let mut jump_list: Vec<usize> = vec![*str_to_usize.get(key).unwrap()];
                 let mut current = key;
