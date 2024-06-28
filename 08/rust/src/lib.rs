@@ -225,19 +225,15 @@ impl Walker {
                 &false,
             )
         });
-        let max_distance = all_distances_to_z.clone().max().unwrap();
+        let max_distance = all_distances_to_z.max().unwrap();
         let max_jumpable_distance = max_distance - (max_distance % walk_instructions.len());
         println!("Max jumpable distance: {max_jumpable_distance}");
         let mut jump_map = MyMap::default();
         jump_map.extend(all_keys.map(|key| {
             let mut jump_list: Vec<String> = vec![key.to_owned()];
             let mut current = key;
-            for i in 0..max_jumpable_distance {
+            for (i, lr) in (0..max_jumpable_distance).zip(walk_instructions.chars().cycle()) {
                 let next_instruction = left_right_map.get(current).unwrap();
-                let lr = walk_instructions
-                    .chars()
-                    .nth(i % walk_instructions.len())
-                    .unwrap();
                 let next = if lr == 'L' {
                     &next_instruction.left
                 } else {
@@ -334,15 +330,14 @@ impl PowerWalker {
         let all_distances_to_z = all_keys
             .clone()
             .map(|key| Self::walk_from_to(&key, &END_IN_Z, walk_instructions, left_right_map, &false));
-        let max_distance = all_distances_to_z.clone().max().unwrap();
+        let max_distance = all_distances_to_z.max().unwrap();
         let max_jumpable_distance = max_distance - (max_distance % walk_instructions.len());
         println!("Max jumpable distance: {max_jumpable_distance}");
-        // let mut jump_map = MyMap::default();
         let jump_map = all_keys
             .map(|key| {
                 let mut jump_list: Vec<usize> = vec![*str_to_usize.get(key).unwrap()];
                 let mut current = key;
-                for i in 0..max_jumpable_distance {
+                for (i, lr) in (0..max_jumpable_distance).zip(walk_instructions.chars().cycle()) {
                     let next_instruction = left_right_map.get(current).unwrap();
                     let lr = walk_instructions
                         .chars()
