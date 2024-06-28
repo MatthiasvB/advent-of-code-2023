@@ -213,8 +213,8 @@ pub struct Walker<'a> {
 }
 
 /*
- * Creating the jump map is the only thing that's truly uniqe to this specific walker, signatures differ
- * between implementations
+ * Create the jump map, which is done differently for both walkers and not public API,
+ * so it does not make sense to include it in a trait
  */
 impl<'a> Walker<'a> {
     fn create_jump_map(
