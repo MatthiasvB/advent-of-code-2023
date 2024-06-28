@@ -12,7 +12,14 @@ interface Itertool {
   nextZ: number;
 }
 
+interface PowerItertool {
+  fullRangeTarget: number;
+  endInZAfter: number;
+  nextZ: number;
+}
+
 type ItertoolMap = Map<string, Itertool>
+type PowerItertoolMap = PowerItertool[]
 
 const debug = false;
 
@@ -27,6 +34,160 @@ function leastCommonMultiple(numbers: number[]) {
   }
 
   return numbers.reduce((multiple, num) => lcm(multiple, num), 1);
+}
+
+export class PowerWalker {
+  private readonly itertools: PowerItertool[];
+  private readonly strToNumber: Map<string, number>;
+  constructor(
+    private readonly walkInstructions: string,
+    private readonly leftRightMap: Map<string, LeftRight>
+  ) {
+    this.strToNumber = new Map([...[...this.leftRightMap.keys()].entries()].map(([index, key]) => ( [key, index])));
+    this.itertools = this.getItertools();
+  }
+
+  public walkByJumpMap() {
+    const jumpMap = this.getJumMap();
+
+    let steps = 0;
+    const currents = this.getAllLocationsMatching(/A$/).map(current => this.strToNumber.get(current)!);
+
+    const itertools = this.getItertools();
+
+    let debugIter = 0;
+
+    while (!this.haveSameZDistance(currents)) {
+      const maxZDistance = this.maxZDistance(currents, this.itertools);
+      const fullLengthJumps = Math.floor(
+        maxZDistance / this.walkInstructions.length,
+      );
+      if (fullLengthJumps === 0) console.warn("stuck!");
+      steps += fullLengthJumps * this.walkInstructions.length;
+
+      // Doing assertion because this is performance-critical and not a large project
+      for (let i = 0; i < currents.length; i++) {
+        currents[i] = jumpMap[currents[i]][fullLengthJumps]
+      }
+
+      debugIter++;
+      if (debug) {
+        if (debugIter % 1_000_000 === 0) {
+          console.log(
+            `Have done ${debugIter} heavily optimized iterations: ${steps} steps.
+Last one was by ${fullLengthJumps} full length jumps. That's ${
+              fullLengthJumps * this.walkInstructions.length
+            } steps.`,
+          );
+          console.log(currents);
+        }
+      }
+    }
+    // one more assertion
+    return steps + itertools[currents[0]].endInZAfter;
+  }
+
+  private getJumMap(): number[][] {
+    const allKeys = [...this.leftRightMap.keys()];
+    console.log(`Number of keys: ${allKeys.length}`);
+    
+    const allDistancesToZ = allKeys.map((key) => this.walkFromTo(key, /Z$/));
+
+    const maxDistance = Math.max(...allDistancesToZ);
+    const maxJumpableDistance = maxDistance -
+      (maxDistance % this.walkInstructions.length);
+      // console.log(`Max jumpable distance: ${maxJumpableDistance}`);
+      
+
+    const jumpMap = allKeys.map((key) => {
+      const jumpList = new Array<number>(1); // bug!
+      let current = key;
+      for (let i = 0; i < maxJumpableDistance; i++) {
+        
+        // assertion!
+        const next = this.leftRightMap.get(current)![
+          this.walkInstructions[i % this.walkInstructions.length] as "L" | "R"
+        ];
+        if ((i + 1) % this.walkInstructions.length === 0) {
+          
+          jumpList.push(this.strToNumber.get(next)!);
+        }
+        current = next;
+      }
+      console.log(`Jump list has length: ${jumpList.length}`);
+      
+      return jumpList;
+    });
+    return jumpMap;
+  }
+
+  private haveSameZDistance(currents: number[]) {
+    const zDistance0 = this.itertools[currents[0]].endInZAfter;
+    if (zDistance0 === null || zDistance0 === undefined) {
+      throw new Error("Could not get z-Distance");
+    }
+
+    for (let i = 1; i < currents.length; i++) {
+      if (this.itertools[currents[i]].endInZAfter !== zDistance0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private maxZDistance(currents: number[], itertools: PowerItertool[]) {
+    return Math.max(
+      ...currents.map((current) => itertools[current].nextZ),
+    );
+  }
+
+  private getItertools(): PowerItertool[] {
+    return [...this.leftRightMap.keys()].map((key) => {
+        const fullRangeTarget = this.targetAfterFullLRRange(key);
+        const endInZAfter = this.walkFromTo(key, /Z$/);
+        const nextZ = this.walkFromTo(key, /Z$/, true);
+        return {
+            fullRangeTarget,
+            endInZAfter,
+            nextZ,
+          } satisfies PowerItertool;
+      });
+  }
+
+  private targetAfterFullLRRange(from: string): number {
+    let current = from;
+    for (const char of this.walkInstructions) {
+      const next = this.leftRightMap.get(current)?.[char as "R" | "L"];
+      if (!next) {
+        throw new Error("Something went wrong");
+      }
+      current = next;
+    }
+    return this.strToNumber.get(current)!;
+  }
+
+  private getAllLocationsMatching(matcher: RegExp) {
+    return [...this.leftRightMap.keys()].filter((key) => matcher.test(key));
+  }
+
+  public walkFromTo(from: string, to: RegExp, forceWalk = false): number {
+    let current = from;
+    let steps = 0;
+
+    while (!to.test(current) || (forceWalk && steps === 0)) {
+      const next = this.leftRightMap.get(current)?.[
+        this.walkInstructions[steps % this.walkInstructions.length] as
+          | "L"
+          | "R"
+      ];
+      if (!next) {
+        throw new Error(`There is no next step to be found after ${current}`);
+      }
+      current = next;
+      steps++;
+    }
+    return steps;
+  }
 }
 
 export class Walker {
@@ -342,4 +503,24 @@ export function solvePart2HeavilyOptimized(walker: Walker) {
  */
 export function magicSolvePart2(walker: Walker) {
   return walker.magicSolve();
+}
+
+export function parseChallengeOptimized(input: string) {
+  const [lr, rawMap] = input.trim().split("\n\n");
+
+  const mapParser = /^([A-Z0-9]{3}) = \(([A-Z0-9]{3}), ([A-Z0-9]{3})\)$/;
+
+  const map = new Map<string, LeftRight>(
+    rawMap
+      .split("\n")
+      .map((line) => line.match(mapParser)?.slice(1))
+      .filter((line): line is RegExpMatchArray => !!line)
+      .map((matches) => [matches[0], { L: matches[1], R: matches[2] }]),
+  );
+
+  return new PowerWalker(lr, map);
+}
+
+export function powerSolvePart2(walker: PowerWalker) {
+  return walker.walkByJumpMap();
 }
