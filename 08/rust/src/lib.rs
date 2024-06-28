@@ -10,11 +10,11 @@ use std::{
 /**
  * Public interface of a solver for the Advent of Code 2023 day 08 challenge part two.
  */
-pub trait AOC8Solver {
+pub trait AOC8Solver<'a> {
     /**
      * Create a solver
      */
-    fn new(walk_instructions: String) -> Self;
+    fn new(walk_instructions: &'a str) -> Self;
 
     /**
      * Calculate the solution
@@ -25,10 +25,10 @@ pub trait AOC8Solver {
 /**
  * Magic: Any Solver can also parse
  */
-impl<T: AOC8Solver> AOC8Parser for T {}
+impl<'a, T: AOC8Solver<'a>> AOC8Parser for T {}
 
 trait AOC8Parser {
-    fn parse_challenge(input: &str) -> (String, MyMap<String, LeftRight>) {
+    fn parse_challenge(input: &str) -> (&str, MyMap<&str, LeftRight>) {
         match input.trim().split("\n\n").collect::<Vec<&str>>()[0..2] {
             [lr, raw_map] => {
                 let mut map = MyMap::default();
@@ -46,14 +46,14 @@ trait AOC8Parser {
                     .filter(|matches| matches.len() >= 3)
                     .for_each(|matches| {
                         map.insert(
-                            matches[0].to_owned(),
+                            matches[0],
                             LeftRight {
-                                left: matches[1].to_owned(),
-                                right: matches[2].to_owned(),
+                                left: matches[1],
+                                right: matches[2],
                             },
                         );
                     });
-                (lr.to_owned(), map)
+                (lr, map)
             }
             _ => {
                 panic!("Problem during parsing")
@@ -65,7 +65,7 @@ trait AOC8Parser {
         from: &str,
         to: &Regex,
         walk_instructions: &str,
-        left_right_map: &MyMap<String, LeftRight>,
+        left_right_map: &MyMap<&str, LeftRight>,
         force_walk: &bool,
     ) -> usize {
         let mut current = from;
@@ -85,14 +85,14 @@ trait AOC8Parser {
         steps
     }
 
-    fn get_all_locations_matching(
+    fn get_all_locations_matching<'a>(
         matcher: &Regex,
-        left_right_map: &MyMap<String, LeftRight>,
-    ) -> Vec<String> {
+        left_right_map: &MyMap<&'a str, LeftRight>,
+    ) -> Vec<&'a str> {
         left_right_map
             .keys()
             .filter(|key| matcher.is_match(key))
-            .cloned()
+            .map(|key| { *key })
             .collect()
     }
 }
@@ -169,9 +169,9 @@ type MyMap<K, V> = HashMap<K, V, FnvBuildHasher>;
 // type MyMap<K, V> = BTreeMap<K, V>;
 
 #[derive(Debug)]
-pub struct LeftRight {
-    left: String,
-    right: String,
+pub struct LeftRight<'a> {
+    left: &'a str,
+    right: &'a str,
 }
 
 pub struct Itertool {
@@ -185,8 +185,8 @@ pub struct Itertool {
     next_z: usize,
 }
 
-type ItertoolMap = MyMap<String, Itertool>;
-type JumpMap = MyMap<String, Vec<String>>;
+type ItertoolMap<'a> = MyMap<&'a str, Itertool>;
+type JumpMap<'a> = MyMap<&'a str, Vec<&'a str>>;
 
 /**
  * Used to access maps and vecs using the same interface, to
@@ -205,22 +205,22 @@ where
     }
 }
 
-pub struct Walker {
-    walk_instructions: String,
-    itertools: MyMap<String, Itertool>,
-    jump_map: JumpMap,
-    start_positions: Vec<String>,
+pub struct Walker<'a> {
+    walk_instructions_len: usize,
+    itertools: MyMap<&'a str, Itertool>,
+    jump_map: JumpMap<'a>,
+    start_positions: Vec<&'a str>,
 }
 
 /*
  * Creating the jump map is the only thing that's truly uniqe to this specific walker, signatures differ
  * between implementations
  */
-impl Walker {
+impl<'a> Walker<'a> {
     fn create_jump_map(
-        left_right_map: &MyMap<String, LeftRight>,
+        left_right_map: &MyMap<&'a str, LeftRight<'a>>,
         walk_instructions: &str,
-    ) -> JumpMap {
+    ) -> JumpMap<'a> {
         println!("Computing jump map");
         let all_keys = left_right_map.keys();
         let all_distances_to_z = all_keys.clone().map(|key| {
@@ -231,7 +231,7 @@ impl Walker {
         println!("Max jumpable distance: {max_jumpable_distance}");
         let mut jump_map = MyMap::default();
         jump_map.extend(all_keys.map(|key| {
-            let mut jump_list: Vec<String> = vec![key.to_owned()];
+            let mut jump_list: Vec<&str> = vec![key];
             let mut current = key;
             for (i, lr) in (0..max_jumpable_distance).zip(walk_instructions.chars().cycle()) {
                 let next_instruction = left_right_map.get(current).unwrap();
@@ -241,7 +241,7 @@ impl Walker {
                     &next_instruction.right
                 };
                 if (i + 1) % walk_instructions.len() == 0 {
-                    jump_list.push(next.to_owned())
+                    jump_list.push(next)
                 };
                 current = next;
             }
@@ -252,8 +252,9 @@ impl Walker {
     }
 }
 
-impl AOC8Solver for Walker {
-    fn new(input: String) -> Self {
+impl<'a> AOC8Solver<'a> for Walker<'a> {
+    fn new(input: &'a str) -> Self {
+        // (&'a str, HashMap<&'a str, LeftRight<'a>)
         let (walk_instructions, left_right_map) = Self::parse_challenge(&input);
         println!("Creating new Walker");
         let mut itertools = ItertoolMap::default();
@@ -263,8 +264,9 @@ impl AOC8Solver for Walker {
 
             let next_z =
                 Self::walk_from_to(key, &END_IN_Z, &walk_instructions, &left_right_map, &true);
+
             (
-                key.to_owned(),
+                *key,
                 Itertool {
                     end_in_z_after,
                     next_z,
@@ -275,7 +277,7 @@ impl AOC8Solver for Walker {
         let start_positions = Self::get_all_locations_matching(&END_IN_A, &left_right_map);
         println!("Created new Walker");
         Self {
-            walk_instructions,
+            walk_instructions_len: walk_instructions.len(),
             itertools,
             start_positions,
             jump_map,
@@ -287,20 +289,20 @@ impl AOC8Solver for Walker {
     }
 }
 
-impl AOC8Walker<String> for Walker {
+impl<'a> AOC8Walker<&'a str> for Walker<'a> {
     fn get_walk_instructions_len(self: &Self) -> usize {
-        self.walk_instructions.len()
+        self.walk_instructions_len
     }
 
-    fn get_jump_map(self: &Self) -> &dyn Accessor<&String, Vec<String>> {
+    fn get_jump_map(self: &Walker<'a>) -> &dyn Accessor<&&'a str, Vec<&'a str>> {
         &self.jump_map
     }
 
-    fn get_start_positions(self: &Self) -> &Vec<String> {
+    fn get_start_positions(self: &Self) -> &Vec<&'a str> {
         &self.start_positions
     }
 
-    fn get_itertools(self: &Self) -> &dyn Accessor<&String, Itertool> {
+    fn get_itertools(self: &Self) -> &dyn Accessor<&&'a str, Itertool> {
         &self.itertools
     }
 }
@@ -324,8 +326,8 @@ pub struct PowerWalker {
 impl PowerWalker {
     fn create_jump_map(
         walk_instructions: &str,
-        left_right_map: &MyMap<String, LeftRight>,
-        str_to_usize: &HashMap<String, usize>,
+        left_right_map: &MyMap<&str, LeftRight>,
+        str_to_usize: &HashMap<&str, usize>,
     ) -> PowerJumpMap {
         let all_keys = left_right_map.keys();
         let all_distances_to_z = all_keys.clone().map(|key| {
@@ -346,7 +348,7 @@ impl PowerWalker {
                         &next_instruction.right
                     };
                     if (i + 1) % walk_instructions.len() == 0 {
-                        jump_list.push(*str_to_usize.get(&next.to_owned()).unwrap())
+                        jump_list.push(*str_to_usize.get(next).unwrap())
                     };
                     current = next;
                 }
@@ -358,17 +360,17 @@ impl PowerWalker {
     }
 }
 
-impl AOC8Solver for PowerWalker {
-    fn new(input: String) -> Self {
-        let (walk_instructions, left_right_map) = Self::parse_challenge(&input);
+impl<'a> AOC8Solver<'a> for PowerWalker {
+    fn new(input: &'a str) -> Self {
         println!("Creating new PowerWalker");
+        let (walk_instructions, left_right_map) = Self::parse_challenge(&input);
         let mut itertools = PowerItertoolMap::with_capacity(left_right_map.len());
 
-        let str_to_usize = HashMap::<String, usize, RandomState>::from_iter(
+        let str_to_usize = HashMap::<&str, usize, RandomState>::from_iter(
             left_right_map
                 .keys()
                 .enumerate()
-                .map(|(index, key)| (key.to_owned(), index)),
+                .map(|(index, key)| (*key, index)),
         );
 
         itertools.extend(left_right_map.keys().map(|key| {
