@@ -204,7 +204,7 @@ impl<K, V> Accessor<&K, V> for MyMap<K, V>
 pub struct Walker {
     walk_instructions: String,
     itertools: MyMap<String, Itertool>,
-    jump_map: MyMap<String, Vec<String>>,
+    jump_map: JumpMap,
     start_positions: Vec<String>,
 }
 
@@ -213,7 +213,7 @@ pub struct Walker {
  * between implementations
  */
 impl Walker {
-    fn create_jump_map(left_right_map: &MyMap<String, LeftRight>, walk_instructions: &str) -> MyMap<String, Vec<String>> {
+    fn create_jump_map(left_right_map: &MyMap<String, LeftRight>, walk_instructions: &str) -> JumpMap {
         println!("Computing jump map");
         let all_keys = left_right_map.keys();
         let all_distances_to_z = all_keys.clone().map(|key| {
@@ -307,14 +307,14 @@ impl AOC8Walker<String> for Walker {
     }
 }
 
+type PowerItertoolMap = Vec<Itertool>;
+type PowerJumpMap = Vec<Vec<usize>>;
+
 impl <V> Accessor<&usize, V> for Vec<V> {
     fn access(self: &Self, key: &usize) -> &V {
         &self[*key]
     }
 }
-
-type PowerItertoolMap = Vec<Itertool>;
-type PowerJumpMap = Vec<Vec<usize>>;
 
 pub struct PowerWalker {
     walk_instructions_len: usize,
