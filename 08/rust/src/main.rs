@@ -13,9 +13,11 @@ fn main() {
         fs::read_to_string(file_name).expect("Could not read the file you told me to analyze");
 
     let walker = 
-        Walker::new(&challenge);
-        // PowerWalker::new(&challenge);
+        // Walker::new(&challenge);
+        PowerWalker::new(&challenge);
 
-    let result_part_2 = walker.solve();
+    let result_part_1 = walker.solve_part_1();
+    let result_part_2 = walker.solve_part_2();
+    println!("Part 1's result is {result_part_1}");
     println!("Part 2's result is {result_part_2}");
 }

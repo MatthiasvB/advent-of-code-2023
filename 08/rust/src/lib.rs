@@ -7,6 +7,19 @@ use std::{
     hash::Hash,
 };
 
+// prefer to do this at compile time
+const DEBUG: bool = false;
+const ASSUME_CONSTANT_MAX_Z_DISTANCE: bool = true;
+const ASSUME_SYNCHRONIZED_START_POINT: bool = true;
+
+macro_rules! debug {
+    ($($arg:tt)*) => {{
+        if DEBUG {
+            println!($($arg)*);
+        }
+    }};
+}
+
 /**
  * Public interface of a solver for the Advent of Code 2023 day 08 challenge part two.
  */
@@ -17,9 +30,14 @@ pub trait AOC8Solver<'a> {
     fn new(walk_instructions: &'a str) -> Self;
 
     /**
-     * Calculate the solution
+     * Calculate the solution to part 1
      */
-    fn solve(self: &Self) -> usize;
+    fn solve_part_1(self: &Self) -> usize;
+
+    /**
+     * Calculate the solution to part 2
+     */
+    fn solve_part_2(self: &Self) -> usize;
 }
 
 /**
@@ -92,7 +110,7 @@ trait AOC8Parser {
         left_right_map
             .keys()
             .filter(|key| matcher.is_match(key))
-            .map(|key| { *key })
+            .map(|key| *key)
             .collect()
     }
 }
@@ -120,8 +138,22 @@ trait AOC8Walker<K> {
 
         let mut currents: Vec<&K> = self.get_start_positions().into_iter().collect();
 
+        let mut cached_full_length_jumps: Option<usize> = None;
+
         while !self.have_same_z_distance(&currents) {
-            let full_length_jumps = self.max_z_distance(&currents) / walk_instructions_length;
+            let full_length_jumps = if ASSUME_CONSTANT_MAX_Z_DISTANCE {
+                match cached_full_length_jumps {
+                    Some(x) => x,
+                    None => {
+                        let full_length_jumps =
+                            self.max_z_distance(&currents) / walk_instructions_length;
+                        cached_full_length_jumps = Some(full_length_jumps);
+                        full_length_jumps
+                    }
+                }
+            } else {
+                self.max_z_distance(&currents) / walk_instructions_length
+            };
 
             if full_length_jumps == 0 {
                 panic!("Stuck!")
@@ -130,7 +162,7 @@ trait AOC8Walker<K> {
             steps += full_length_jumps * walk_instructions_length;
 
             if steps - last >= print_every {
-                println!("Now at {steps}");
+                debug!("Now at {steps}");
                 last = steps;
             }
 
@@ -158,6 +190,18 @@ trait AOC8Walker<K> {
             .map(|current| self.get_itertools().access(*current).next_z)
             .max()
             .unwrap_or(0)
+    }
+
+    fn internal_solve_part_2(self: &Self) -> usize {
+        if ASSUME_CONSTANT_MAX_Z_DISTANCE && ASSUME_SYNCHRONIZED_START_POINT {
+            return least_common_multiple(
+                self.get_start_positions()
+                .iter()
+                .map(|start_pos| self.get_itertools().access(start_pos).end_in_z_after)
+                .collect()
+            );
+        }
+        self.walk_by_jump_map()
     }
 }
 
@@ -221,14 +265,14 @@ impl<'a> Walker<'a> {
         left_right_map: &MyMap<&'a str, LeftRight<'a>>,
         walk_instructions: &str,
     ) -> JumpMap<'a> {
-        println!("Computing jump map");
+        debug!("Computing jump map");
         let all_keys = left_right_map.keys();
         let all_distances_to_z = all_keys.clone().map(|key| {
             Self::walk_from_to(&key, &END_IN_Z, walk_instructions, left_right_map, &false)
         });
         let max_distance = all_distances_to_z.max().unwrap();
         let max_jumpable_distance = max_distance - (max_distance % walk_instructions.len());
-        println!("Max jumpable distance: {max_jumpable_distance}");
+        debug!("Max jumpable distance: {max_jumpable_distance}");
         let mut jump_map = MyMap::default();
         jump_map.extend(all_keys.map(|key| {
             let mut jump_list: Vec<&str> = vec![key];
@@ -247,7 +291,7 @@ impl<'a> Walker<'a> {
             }
             (key.to_owned(), jump_list)
         }));
-        println!("Computed jump map");
+        debug!("Computed jump map");
         jump_map
     }
 }
@@ -256,7 +300,7 @@ impl<'a> AOC8Solver<'a> for Walker<'a> {
     fn new(input: &'a str) -> Self {
         // (&'a str, HashMap<&'a str, LeftRight<'a>)
         let (walk_instructions, left_right_map) = Self::parse_challenge(&input);
-        println!("Creating new Walker");
+        debug!("Creating new Walker");
         let mut itertools = ItertoolMap::default();
         itertools.extend(left_right_map.keys().map(|key| {
             let end_in_z_after =
@@ -275,7 +319,7 @@ impl<'a> AOC8Solver<'a> for Walker<'a> {
         }));
         let jump_map = Self::create_jump_map(&left_right_map, &walk_instructions);
         let start_positions = Self::get_all_locations_matching(&END_IN_A, &left_right_map);
-        println!("Created new Walker");
+        debug!("Created new Walker");
         Self {
             walk_instructions_len: walk_instructions.len(),
             itertools,
@@ -284,8 +328,12 @@ impl<'a> AOC8Solver<'a> for Walker<'a> {
         }
     }
 
-    fn solve(self: &Self) -> usize {
-        self.walk_by_jump_map()
+    fn solve_part_1(self: &Self) -> usize {
+        self.itertools.access(&"AAA").end_in_z_after
+    }
+
+    fn solve_part_2(self: &Self) -> usize {
+        self.internal_solve_part_2()
     }
 }
 
@@ -317,6 +365,7 @@ impl<V> Accessor<&usize, V> for Vec<V> {
 }
 
 pub struct PowerWalker {
+    start_index_part_1: usize,
     walk_instructions_len: usize,
     itertools: Vec<Itertool>,
     start_positions: Vec<usize>,
@@ -335,7 +384,7 @@ impl PowerWalker {
         });
         let max_distance = all_distances_to_z.max().unwrap();
         let max_jumpable_distance = max_distance - (max_distance % walk_instructions.len());
-        println!("Max jumpable distance: {max_jumpable_distance}");
+        debug!("Max jumpable distance: {max_jumpable_distance}");
         let jump_map = all_keys
             .map(|key| {
                 let mut jump_list: Vec<usize> = vec![*str_to_usize.get(key).unwrap()];
@@ -355,14 +404,14 @@ impl PowerWalker {
                 jump_list
             })
             .collect();
-        println!("Computed jump map");
+        debug!("Computed jump map");
         jump_map
     }
 }
 
 impl<'a> AOC8Solver<'a> for PowerWalker {
     fn new(input: &'a str) -> Self {
-        println!("Creating new PowerWalker");
+        debug!("Creating new PowerWalker");
         let (walk_instructions, left_right_map) = Self::parse_challenge(&input);
         let mut itertools = PowerItertoolMap::with_capacity(left_right_map.len());
 
@@ -390,9 +439,11 @@ impl<'a> AOC8Solver<'a> for PowerWalker {
             .map(|x| str_to_usize.get(x).unwrap().to_owned())
             .collect();
         let jump_map = Self::create_jump_map(&walk_instructions, &left_right_map, &str_to_usize);
+        let start_index_part_1 = *str_to_usize.get("AAA").unwrap();
 
-        println!("Created new PowerWalker");
+        debug!("Created new PowerWalker");
         Self {
+            start_index_part_1,
             jump_map,
             walk_instructions_len: walk_instructions.len(),
             itertools,
@@ -400,8 +451,14 @@ impl<'a> AOC8Solver<'a> for PowerWalker {
         }
     }
 
-    fn solve(self: &Self) -> usize {
-        self.walk_by_jump_map()
+    fn solve_part_1(self: &Self) -> usize {
+        self.itertools
+            .access(&self.start_index_part_1)
+            .end_in_z_after
+    }
+
+    fn solve_part_2(self: &Self) -> usize {
+        self.internal_solve_part_2()
     }
 }
 
@@ -421,6 +478,23 @@ impl AOC8Walker<usize> for PowerWalker {
     fn get_jump_map(self: &Self) -> &dyn Accessor<&usize, Vec<usize>> {
         &self.jump_map
     }
+}
+
+// inspired by https://stackoverflow.com/questions/31302054/how-to-find-the-least-common-multiple-of-a-range-of-numbers
+pub fn least_common_multiple(numbers: Vec<usize>) -> usize {
+    fn gcd(a: &usize, b: &usize) -> usize {
+        return if *b == 0 {
+            a.to_owned()
+        } else {
+            gcd(b, &(*a % *b))
+        };
+    }
+
+    fn lcm(a: &usize, b: &usize) -> usize {
+        (a * b) / gcd(a, b)
+    }
+
+    numbers.iter().fold(1, |multiple, num| lcm(&multiple, num))
 }
 
 lazy_static! {
