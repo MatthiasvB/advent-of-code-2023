@@ -9,3 +9,11 @@ edition = "2021"
 fnv = "1.0.7"
 lazy_static = "1.4.0"
 regex = "1.10.3"
+
+[features]
+default = []
+debug = []
+# I'm not entirely sure if these are the correct assumptions, and whether they are
+# independent of each other
+assume_constant_z_distances = [] # enables certain optimizations
+use_lcm = [] # "Cheat" using the lcm approach. Also only works under the assumption of constant z distances

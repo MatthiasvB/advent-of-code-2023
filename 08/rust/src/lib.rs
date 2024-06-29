@@ -7,16 +7,11 @@ use std::{
     hash::Hash,
 };
 
-// prefer to do this at compile time
-const DEBUG: bool = false;
-const ASSUME_CONSTANT_MAX_Z_DISTANCE: bool = true;
-const ASSUME_SYNCHRONIZED_START_POINT: bool = true;
 
 macro_rules! debug {
     ($($arg:tt)*) => {{
-        if DEBUG {
-            println!($($arg)*);
-        }
+        #[cfg(feature = "debug")]
+        println!($($arg)*);
     }};
 }
 
@@ -138,22 +133,14 @@ trait AOC8Walker<K> {
 
         let mut currents: Vec<&K> = self.get_start_positions().into_iter().collect();
 
-        let mut cached_full_length_jumps: Option<usize> = None;
+        #[cfg(feature = "assume_constant_z_distances")]
+        let full_length_jumps = self.max_z_distance(&currents) / walk_instructions_length;
 
         while !self.have_same_z_distance(&currents) {
-            let full_length_jumps = if ASSUME_CONSTANT_MAX_Z_DISTANCE {
-                match cached_full_length_jumps {
-                    Some(x) => x,
-                    None => {
-                        let full_length_jumps =
-                            self.max_z_distance(&currents) / walk_instructions_length;
-                        cached_full_length_jumps = Some(full_length_jumps);
-                        full_length_jumps
-                    }
-                }
-            } else {
-                self.max_z_distance(&currents) / walk_instructions_length
-            };
+            // I think this is not ideal. I'd prefer to only mutate a variable
+            // defined outside the loop, but "attributes on expressions are experimental"
+            #[cfg(not(feature = "assume_constant_z_distances"))]
+            let full_length_jumps = self.max_z_distance(&currents) / walk_instructions_length;
 
             if full_length_jumps == 0 {
                 panic!("Stuck!")
@@ -192,16 +179,19 @@ trait AOC8Walker<K> {
             .unwrap_or(0)
     }
 
+    #[cfg(not(feature = "use_lcm"))]
     fn internal_solve_part_2(self: &Self) -> usize {
-        if ASSUME_CONSTANT_MAX_Z_DISTANCE && ASSUME_SYNCHRONIZED_START_POINT {
-            return least_common_multiple(
-                self.get_start_positions()
+        self.walk_by_jump_map()
+    }
+
+    #[cfg(feature = "use_lcm")]
+    fn internal_solve_part_2(self: &Self) -> usize {
+        least_common_multiple(
+            self.get_start_positions()
                 .iter()
                 .map(|start_pos| self.get_itertools().access(start_pos).end_in_z_after)
-                .collect()
-            );
-        }
-        self.walk_by_jump_map()
+                .collect(),
+        )
     }
 }
 
