@@ -493,3 +493,46 @@ lazy_static! {
     static ref MAP_PARSER: Regex =
         Regex::new("^([A-Z0-9]{3}) = \\(([A-Z0-9]{3}), ([A-Z0-9]{3})\\)$").unwrap();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    static INPUT: &str = include_str!("../../challenge.txt");
+    #[cfg(feature = "medium_test")]
+    const PART1: usize = 16697;
+    #[cfg(feature = "heavy_test")]
+    const PART2: usize = 10668805667831;
+
+    #[test]
+    fn lcm_works() {
+        assert_eq!(least_common_multiple(vec![3, 7, 43]), 903);
+        assert_eq!(least_common_multiple(vec![57356, 54673643, 4452435]), 1074016873451150460);
+        assert_eq!(least_common_multiple(vec![3, 3, 3]), 3);
+        assert_eq!(least_common_multiple(vec![3, 24, 6]), 24);
+    }
+
+    #[cfg(feature = "medium_test")]
+    #[test]
+    fn walker_part_1() {
+        assert_eq!(Walker::new(INPUT).solve_part_1(), PART1);
+    }
+
+    #[cfg(feature = "medium_test")]
+    #[test]
+    fn power_walker_part_1() {
+        assert_eq!(PowerWalker::new(INPUT).solve_part_1(), PART1);
+    }
+
+    #[cfg(feature = "heavy_test")]
+    #[test]
+    fn walker_part_2() {
+        assert_eq!(Walker::new(INPUT).solve_part_2(), PART2);
+    }
+
+    #[cfg(feature = "heavy_test")]
+    #[test]
+    fn power_walker_part_2() {
+        assert_eq!(PowerWalker::new(INPUT).solve_part_2(), PART2);
+    }
+}

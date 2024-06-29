@@ -17,3 +17,5 @@ debug = []
 # independent of each other
 assume_constant_z_distances = [] # enables certain optimizations
 use_lcm = [] # "Cheat" using the lcm approach. Also only works under the assumption of constant z distances
+medium_test = []
+heavy_test = ["medium_test"] # Execute full test suite, may take long
