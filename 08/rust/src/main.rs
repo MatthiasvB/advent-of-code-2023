@@ -1,7 +1,9 @@
 use core::fmt;
 use std::{env, fs};
 
-use advent_of_code_23_08::{AOC8Solver, AOCTracer, PowerWalker, Walker};
+mod walker;
+
+use walker::{AOC8Solver, AOCTracer, PowerWalker, Walker};
 
 fn main() {
     let file_name: String = env::args().nth(1).expect(
