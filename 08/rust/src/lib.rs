@@ -1,12 +1,13 @@
 use core::panic;
-use fnv::FnvBuildHasher;
+use fnv::{FnvBuildHasher, FnvHashSet};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::{
     collections::{hash_map::RandomState, HashMap},
+    error::Error,
+    fmt::{Debug, Display},
     hash::Hash,
 };
-
 
 macro_rules! debug {
     ($($arg:tt)*) => {{
@@ -240,10 +241,12 @@ where
 }
 
 pub struct Walker<'a> {
+    walk_map: MyMap<&'a str, LeftRight<'a>>,
+    walk_instructions: &'a str,
     walk_instructions_len: usize,
     itertools: MyMap<&'a str, Itertool>,
     jump_map: JumpMap<'a>,
-    start_positions: Vec<&'a str>,
+    pub start_positions: Vec<&'a str>,
 }
 
 /*
@@ -311,6 +314,8 @@ impl<'a> AOC8Solver<'a> for Walker<'a> {
         let start_positions = Self::get_all_locations_matching(&END_IN_A, &left_right_map);
         debug!("Created new Walker");
         Self {
+            walk_map: left_right_map,
+            walk_instructions,
             walk_instructions_len: walk_instructions.len(),
             itertools,
             start_positions,
@@ -487,6 +492,89 @@ pub fn least_common_multiple(numbers: Vec<usize>) -> usize {
     numbers.iter().fold(1, |multiple, num| lcm(&multiple, num))
 }
 
+pub trait AOCTracer<T> {
+    /**
+     * Can be used to check hypothesis that individual routes are non-overlapping
+     */
+    fn get_all_locations_traversed_by(
+        self: &Self,
+        start_point: T,
+        steps: usize,
+        include_start: bool,
+    ) -> Result<Vec<T>, Box<dyn Error>>;
+}
+
+#[derive(Debug)]
+struct InvalidArgumentChoice<T: Display> {
+    was: T,
+    options: Vec<T>,
+}
+
+impl<T: Display> Display for InvalidArgumentChoice<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.options.split_last() {
+            Some((last, els)) => {
+                write!(f, "\"{}\" is not one of ", self.was)?;
+                for el in els {
+                    write!(f, "{}, ", el)?;
+                }
+                write!(f, "{}", last)
+            }
+            _ => {
+                write!(f, "You passed \"{}\", but in this context there are no valid candidates for this argument", self.was)
+            }
+        }
+    }
+}
+
+impl<T: Display + Debug> Error for InvalidArgumentChoice<T> {}
+
+impl<'a> AOCTracer<String> for Walker<'a> {
+    fn get_all_locations_traversed_by(
+        self: &Self,
+        start_point: String,
+        steps: usize,
+        include_start: bool,
+    ) -> Result<Vec<String>, Box<(dyn std::error::Error + 'static)>> {
+        self.start_positions
+            .iter()
+            .find(|val| (**val).eq(&start_point))
+            .ok_or_else(|| InvalidArgumentChoice {
+                was: start_point.to_owned(),
+                options: self
+                    .start_positions
+                    .iter()
+                    .map(|el| (*el).to_owned())
+                    .collect(),
+            })?;
+
+        let mut current: &str = &start_point;
+        let mut all_locations = FnvHashSet::default();
+
+        if include_start {
+            all_locations.insert(current);
+        }
+
+        (0..steps).into_iter().zip(self.walk_instructions.chars().cycle()).map(|(_, lr)| lr).for_each(|lr| {
+            let left_right = self.walk_map.access(&current);
+            match lr {
+                'L' => {
+                    current = left_right.left;
+                },
+                'R' => {
+                    current = left_right.right;
+                },
+                invalid => {
+                    unreachable!("Only \"L\" and \"R\" are valid instructions, but \"{invalid}\" was given");
+                }
+            }
+            all_locations.insert(current);
+        });
+
+        Ok(all_locations.into_iter().map(|val| val.to_owned()).collect())
+    }
+}
+
 lazy_static! {
     static ref END_IN_Z: Regex = Regex::new("Z$").unwrap();
     static ref END_IN_A: Regex = Regex::new("A$").unwrap();
@@ -498,6 +586,7 @@ lazy_static! {
 mod tests {
     use super::*;
 
+    #[cfg(any(feature = "medium_test", feature = "heavy_test"))]
     static INPUT: &str = include_str!("../../challenge.txt");
     #[cfg(feature = "medium_test")]
     const PART1: usize = 16697;
@@ -507,7 +596,10 @@ mod tests {
     #[test]
     fn lcm_works() {
         assert_eq!(least_common_multiple(vec![3, 7, 43]), 903);
-        assert_eq!(least_common_multiple(vec![57356, 54673643, 4452435]), 1074016873451150460);
+        assert_eq!(
+            least_common_multiple(vec![57356, 54673643, 4452435]),
+            1074016873451150460
+        );
         assert_eq!(least_common_multiple(vec![3, 3, 3]), 3);
         assert_eq!(least_common_multiple(vec![3, 24, 6]), 24);
     }
