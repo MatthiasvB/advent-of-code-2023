@@ -6,9 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+colored = "2.1.0"
 fnv = "1.0.7"
 lazy_static = "1.4.0"
 regex = "1.10.3"
+tap = "1.0.1"
 
 [features]
 default = []

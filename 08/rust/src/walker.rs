@@ -1,5 +1,7 @@
+use colored::{Color, ColoredString, Colorize};
+use tap::{Pipe, Tap};
 use core::panic;
-use fnv::{FnvBuildHasher, FnvHashSet};
+use fnv::{FnvBuildHasher, FnvHashMap, FnvHashSet};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::{
@@ -44,8 +46,8 @@ impl<'a, T: AOC8Solver<'a>> AOC8Parser for T {}
 trait AOC8Parser {
     fn parse_challenge(input: &str) -> (&str, MyMap<&str, LeftRight>) {
         match input.trim().split("\n\n").collect::<Vec<&str>>()[0..2] {
-            [lr, raw_map] => {
-                let mut map = MyMap::default();
+            [lr, raw_map] => (
+                lr,
                 raw_map
                     .split("\n")
                     .map(|line| {
@@ -58,17 +60,17 @@ trait AOC8Parser {
                             .collect::<Vec<&str>>()
                     })
                     .filter(|matches| matches.len() >= 3)
-                    .for_each(|matches| {
-                        map.insert(
+                    .map(|matches| {
+                        (
                             matches[0],
                             LeftRight {
                                 left: matches[1],
                                 right: matches[2],
                             },
-                        );
-                    });
-                (lr, map)
-            }
+                        )
+                    })
+                    .collect(),
+            ),
             _ => {
                 panic!("Problem during parsing")
             }
@@ -207,6 +209,16 @@ type MyMap<K, V> = HashMap<K, V, FnvBuildHasher>;
 pub struct LeftRight<'a> {
     left: &'a str,
     right: &'a str,
+}
+
+impl<'a> Accessor<char, &'a str> for LeftRight<'a> {
+    fn access(self: &Self, key: char) -> &&'a str {
+        match key {
+            'L' => &self.left,
+            'R' => &self.right,
+            invalid => panic!("Tried to access struct LeftRight with \"{invalid}\", but only \"L\" and \"R\" are valid")
+        }
+    }
 }
 
 pub struct Itertool {
@@ -502,6 +514,12 @@ pub trait AOCTracer<T> {
         steps: usize,
         include_start: bool,
     ) -> Result<Vec<T>, Box<dyn Error>>;
+
+    fn build_traces(self: &Self) -> FnvHashMap<&str, Vec<TraceItem>>;
+
+    /// Returns an iterator over debug strings listing information about the current iteration
+    /// for all strands
+    fn iter_steps(self: &Self) -> impl Iterator<Item = String>;
 }
 
 #[derive(Debug)]
@@ -528,6 +546,18 @@ impl<T: Display> Display for InvalidArgumentChoice<T> {
 }
 
 impl<T: Display + Debug> Error for InvalidArgumentChoice<T> {}
+
+pub struct TraceItem {
+    pub location: String,
+    pub left: String,
+    pub right: String,
+}
+
+impl ToString for TraceItem {
+    fn to_string(&self) -> String {
+        format!("{} = ({}, {})", self.location, self.left, self.right)
+    }
+}
 
 impl<'a> AOCTracer<String> for Walker<'a> {
     fn get_all_locations_traversed_by(
@@ -571,9 +601,206 @@ impl<'a> AOCTracer<String> for Walker<'a> {
             all_locations.insert(current);
         });
 
-        Ok(all_locations.into_iter().map(|val| val.to_owned()).collect())
+        Ok(all_locations
+            .into_iter()
+            .map(|val| val.to_owned())
+            .collect())
+    }
+
+    fn build_traces(self: &Self) -> FnvHashMap<&str, Vec<TraceItem>> {
+        let mut traced = FnvHashMap::default();
+        let mut traces =
+            FnvHashMap::from_iter(self.start_positions.iter().map(|pos| (*pos, vec![])));
+        let mut currents =
+            FnvHashMap::from_iter(self.start_positions.iter().map(|key| (*key, *key)));
+        for lr in self.walk_instructions.chars().cycle() {
+            for (start, current) in &mut currents {
+                let left_right = self.walk_map.access(&current);
+
+                if *traced
+                    .entry(*current)
+                    .and_modify(|count| *count += 1)
+                    .or_insert(1usize)
+                    == 1
+                {
+                    traces.get_mut(start).unwrap().push(TraceItem {
+                        location: current.to_string(),
+                        left: left_right.left.to_string(),
+                        right: left_right.right.to_string(),
+                    });
+                }
+
+                *current = left_right.access(lr);
+            }
+            if traced.len() == self.walk_map.len() {
+                return traces;
+            }
+        }
+        // should not be reached
+        traces
+    }
+
+    fn iter_steps(self: &Self) -> impl Iterator<Item = String> {
+        self.walk_instructions.chars().cycle().scan(
+            (
+                0,
+                self.start_positions.clone(),
+                FnvHashMap::from_iter(self.start_positions.iter().map(|pos| (*pos, 1usize))),
+            ),
+            |(i, currents, iter_count), lr| {
+                let printable = format!(
+                    "{:>4}: {lr}\t{}",
+                    i,
+                    positions_to_string(&currents, &self.walk_map, iter_count, lr)
+                );
+                for current in currents {
+                    *current = self.walk_map.access(current).access(lr);
+                    iter_count
+                        .entry(*current)
+                        .and_modify(|count| *count += 1)
+                        .or_insert(1usize);
+                }
+                *i += 1;
+                Some(printable)
+            },
+        )
     }
 }
+
+fn positions_to_string<'a>(
+    positions: &'a Vec<&'a str>,
+    walk_map: &dyn Accessor<&&'a str, LeftRight<'a>>,
+    iter_count: &dyn Accessor<&&'a str, usize>,
+    lr: char,
+) -> String {
+    positions
+        .iter()
+        .map(|pos| {
+            let left_right = walk_map.access(pos);
+            format!(
+                "{:>2} x {} = ({}, {})",
+                iter_count.access(pos),
+                pos.normal()
+                    .tap_into_if(END_IN_A.is_match(pos), ColoredString::green)
+                    .tap_into_if(END_IN_Z.is_match(pos), ColoredString::red),
+                &left_right
+                    .left
+                    .normal()
+                    .tap_into_if(lr == 'L', ColoredString::bold)
+                    .tap_into_if(END_IN_A.is_match(left_right.left), ColoredString::green)
+                    .tap_into_if(END_IN_Z.is_match(left_right.left), ColoredString::red),
+                &left_right
+                    .right
+                    .normal()
+                    .tap_into_if(lr == 'R',ColoredString::bold)
+                    .tap_into_if(END_IN_A.is_match(left_right.right), ColoredString::green)
+                    .tap_into_if(END_IN_Z.is_match(left_right.right), ColoredString::red)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\t")
+}
+
+/// Defines utilities to conditionally tap closures to values in a chainable fashion.
+pub trait TapIf {
+    fn tap_if(self: &Self, condition: bool, runner: impl FnOnce(&Self) -> ()) -> &Self {
+        if condition {
+            runner(self);
+        };
+        self
+    }
+
+    fn tap_mut_if(
+        self: &mut Self,
+        condition: bool,
+        modifier: impl FnOnce(&mut Self) -> (),
+    ) -> &mut Self {
+        if condition {
+            modifier(self);
+        };
+        self
+    }
+
+    fn tap_if_fulfills(
+        self: &Self,
+        predicate: impl FnOnce(&Self) -> bool,
+        runner: impl FnOnce(&Self) -> (),
+    ) -> &Self {
+        self.tap_if(predicate(self), runner)
+    }
+
+    fn tap_mut_if_fulfills(
+        self: &mut Self,
+        predicate: impl FnOnce(&Self) -> bool,
+        modifier: impl FnOnce(&mut Self) -> (),
+    ) -> &mut Self {
+        self.tap_mut_if(predicate(self), modifier)
+    }
+}
+
+/// Defines utilities to conditionally tap closures to values in a chainable fashion.
+pub trait TapIfSized
+where
+    Self: Sized,
+{
+    // I wonder whether "into" fits well here
+    fn tap_into_if(self, condition: bool, modifier: impl FnOnce(Self) -> Self) -> Self {
+        if condition {
+            modifier(self)
+        } else {
+            self
+        }
+    }
+
+    // I wonder if "with" is a good name
+    fn tap_with_if(mut self, condition: bool, modifier: impl FnOnce(&mut Self) -> ()) -> Self {
+        if condition {
+            modifier(&mut self);
+        };
+        self
+    }
+
+    fn tap_into_if_fulfills(
+        self,
+        predicate: impl FnOnce(&Self) -> bool,
+        modifier: impl FnOnce(Self) -> Self,
+    ) -> Self {
+        predicate(&self).pipe(|condition| self.tap_into_if(condition, modifier))
+    }
+
+    fn tap_with_if_fulfills(
+        mut self,
+        predicate: impl FnOnce(&Self) -> bool,
+        modifier: impl FnOnce(&mut Self) -> (),
+    ) -> Self {
+        predicate(&self).pipe(|condition| self.tap_with_if(condition, modifier))
+    }
+}
+
+pub trait TapIfCloned
+where
+    Self: Sized + Clone,
+{
+    fn cloned_tap_if(self: &Self, condition: bool, modifier: impl FnOnce(&Self) -> Self) -> Self {
+        if condition {
+            modifier(self)
+        } else {
+            self.clone()
+        }
+    }
+
+    fn cloned_tap_if_fulfills(
+        self: &Self,
+        predicate: impl FnOnce(&Self) -> bool,
+        modifier: impl FnOnce(&Self) -> Self,
+    ) -> Self {
+        self.cloned_tap_if(predicate(self), modifier)
+    }
+}
+
+impl<T> TapIf for T {}
+impl<T: Sized> TapIfSized for T {}
+impl<T: Sized + Clone> TapIfCloned for T {}
 
 lazy_static! {
     static ref END_IN_Z: Regex = Regex::new("Z$").unwrap();

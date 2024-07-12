@@ -24,13 +24,17 @@ fn main() {
     println!("Part 1's result is {result_part_1}");
     //println!("Part 2's result is {result_part_2}");
     
-    let all_starts = walker.start_positions.clone();
-    let traced_locations = all_starts.iter().map(|location| {
-        (location.to_owned(), walker.get_all_locations_traversed_by(location.to_string(), 1_000_000, true).expect(&format!("Could not trace {}", location)))
+    // let all_starts = walker.start_positions.clone();
+    // let traced_locations = all_starts.iter().map(|location| {
+    //     (location.to_owned(), walker.get_all_locations_traversed_by(location.to_string(), 1_000_000, true).expect(&format!("Could not trace {}", location)))
+    // });
+    // 
+    // for trace in traced_locations.clone() {
+    //     println!("{} traced {} locations: {:?}", trace.0, trace.1.len(), trace.1);
+    // }
+    // println!("\n That's {} locations in total", traced_locations.map(|el| el.1.len()).sum::<usize>());
+
+    (0..16700).into_iter().zip(walker.iter_steps()).for_each(|(_, step)| {
+        println!("{}", step);
     });
-    
-    for trace in traced_locations.clone() {
-        println!("{} traced {} locations: {:?}", trace.0, trace.1.len(), trace.1);
-    }
-    println!("\n That's {} locations in total", traced_locations.map(|el| el.1.len()).sum::<usize>());
 }
