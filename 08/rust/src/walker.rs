@@ -1,5 +1,4 @@
 use colored::{Color, ColoredString, Colorize};
-use tap::{Pipe, Tap};
 use core::panic;
 use fnv::{FnvBuildHasher, FnvHashMap, FnvHashSet};
 use lazy_static::lazy_static;
@@ -10,6 +9,9 @@ use std::{
     fmt::{Debug, Display},
     hash::Hash,
 };
+use tap::{Pipe, Tap, TapOptional};
+
+use crate::tapif::TapIfSized;
 
 macro_rules! debug {
     ($($arg:tt)*) => {{
@@ -519,7 +521,11 @@ pub trait AOCTracer<T> {
 
     /// Returns an iterator over debug strings listing information about the current iteration
     /// for all strands
-    fn iter_steps(self: &Self) -> impl Iterator<Item = String>;
+    fn iter_steps(
+        self: &Self,
+        stop_at_repeat: bool,
+        show_duplicates: bool,
+    ) -> impl Iterator<Item = String>;
 }
 
 #[derive(Debug)]
@@ -640,18 +646,33 @@ impl<'a> AOCTracer<String> for Walker<'a> {
         traces
     }
 
-    fn iter_steps(self: &Self) -> impl Iterator<Item = String> {
+    fn iter_steps(
+        self: &Self,
+        stop_at_repeat: bool,
+        hide_duplicates: bool,
+    ) -> impl Iterator<Item = String> {
         self.walk_instructions.chars().cycle().scan(
             (
                 0,
                 self.start_positions.clone(),
                 FnvHashMap::from_iter(self.start_positions.iter().map(|pos| (*pos, 1usize))),
             ),
-            |(i, currents, iter_count), lr| {
+            move |(i, currents, iter_count), lr| {
                 let printable = format!(
-                    "{:>4}: {lr}\t{}",
+                    "{:>4} > {:>2}: {lr}\t{}",
                     i,
-                    positions_to_string(&currents, &self.walk_map, iter_count, lr)
+                    *i / self.walk_instructions_len + 1,
+                    positions_to_string(
+                        &currents,
+                        &self.walk_map,
+                        iter_count,
+                        lr,
+                        if hide_duplicates {
+                            Some(&iter_count)
+                        } else {
+                            None
+                        }
+                    )
                 );
                 for current in currents {
                     *current = self.walk_map.access(current).access(lr);
@@ -661,6 +682,9 @@ impl<'a> AOCTracer<String> for Walker<'a> {
                         .or_insert(1usize);
                 }
                 *i += 1;
+                if stop_at_repeat && iter_count.len() == self.walk_map.len() {
+                    return None;
+                }
                 Some(printable)
             },
         )
@@ -672,135 +696,42 @@ fn positions_to_string<'a>(
     walk_map: &dyn Accessor<&&'a str, LeftRight<'a>>,
     iter_count: &dyn Accessor<&&'a str, usize>,
     lr: char,
+    duplicate_map: Option<&FnvHashMap<&str, usize>>,
 ) -> String {
     positions
         .iter()
         .map(|pos| {
-            let left_right = walk_map.access(pos);
-            format!(
-                "{:>2} x {} = ({}, {})",
-                iter_count.access(pos),
-                pos.normal()
-                    .tap_into_if(END_IN_A.is_match(pos), ColoredString::green)
-                    .tap_into_if(END_IN_Z.is_match(pos), ColoredString::red),
-                &left_right
-                    .left
-                    .normal()
-                    .tap_into_if(lr == 'L', ColoredString::bold)
-                    .tap_into_if(END_IN_A.is_match(left_right.left), ColoredString::green)
-                    .tap_into_if(END_IN_Z.is_match(left_right.left), ColoredString::red),
-                &left_right
-                    .right
-                    .normal()
-                    .tap_into_if(lr == 'R',ColoredString::bold)
-                    .tap_into_if(END_IN_A.is_match(left_right.right), ColoredString::green)
-                    .tap_into_if(END_IN_Z.is_match(left_right.right), ColoredString::red)
-            )
+            let already_counted = duplicate_map
+                .map(|duplicates| duplicates.get(pos))
+                .flatten();
+            if let Some(1) = already_counted {
+                let left_right = walk_map.access(pos);
+                format!(
+                    "{:>2} x {} = ({}, {})",
+                    iter_count.access(pos),
+                    pos.normal()
+                        .tap_into_if(END_IN_A.is_match(pos), ColoredString::green)
+                        .tap_into_if(END_IN_Z.is_match(pos), ColoredString::red),
+                    &left_right
+                        .left
+                        .normal()
+                        .tap_into_if(lr == 'L', ColoredString::bold)
+                        .tap_into_if(END_IN_A.is_match(left_right.left), ColoredString::green)
+                        .tap_into_if(END_IN_Z.is_match(left_right.left), ColoredString::red),
+                    &left_right
+                        .right
+                        .normal()
+                        .tap_into_if(lr == 'R', ColoredString::bold)
+                        .tap_into_if(END_IN_A.is_match(left_right.right), ColoredString::green)
+                        .tap_into_if(END_IN_Z.is_match(left_right.right), ColoredString::red)
+                )
+            } else {
+                "                    ".to_string()
+            }
         })
         .collect::<Vec<_>>()
         .join("\t")
 }
-
-/// Defines utilities to conditionally tap closures to values in a chainable fashion.
-pub trait TapIf {
-    fn tap_if(self: &Self, condition: bool, runner: impl FnOnce(&Self) -> ()) -> &Self {
-        if condition {
-            runner(self);
-        };
-        self
-    }
-
-    fn tap_mut_if(
-        self: &mut Self,
-        condition: bool,
-        modifier: impl FnOnce(&mut Self) -> (),
-    ) -> &mut Self {
-        if condition {
-            modifier(self);
-        };
-        self
-    }
-
-    fn tap_if_fulfills(
-        self: &Self,
-        predicate: impl FnOnce(&Self) -> bool,
-        runner: impl FnOnce(&Self) -> (),
-    ) -> &Self {
-        self.tap_if(predicate(self), runner)
-    }
-
-    fn tap_mut_if_fulfills(
-        self: &mut Self,
-        predicate: impl FnOnce(&Self) -> bool,
-        modifier: impl FnOnce(&mut Self) -> (),
-    ) -> &mut Self {
-        self.tap_mut_if(predicate(self), modifier)
-    }
-}
-
-/// Defines utilities to conditionally tap closures to values in a chainable fashion.
-pub trait TapIfSized
-where
-    Self: Sized,
-{
-    // I wonder whether "into" fits well here
-    fn tap_into_if(self, condition: bool, modifier: impl FnOnce(Self) -> Self) -> Self {
-        if condition {
-            modifier(self)
-        } else {
-            self
-        }
-    }
-
-    // I wonder if "with" is a good name
-    fn tap_with_if(mut self, condition: bool, modifier: impl FnOnce(&mut Self) -> ()) -> Self {
-        if condition {
-            modifier(&mut self);
-        };
-        self
-    }
-
-    fn tap_into_if_fulfills(
-        self,
-        predicate: impl FnOnce(&Self) -> bool,
-        modifier: impl FnOnce(Self) -> Self,
-    ) -> Self {
-        predicate(&self).pipe(|condition| self.tap_into_if(condition, modifier))
-    }
-
-    fn tap_with_if_fulfills(
-        mut self,
-        predicate: impl FnOnce(&Self) -> bool,
-        modifier: impl FnOnce(&mut Self) -> (),
-    ) -> Self {
-        predicate(&self).pipe(|condition| self.tap_with_if(condition, modifier))
-    }
-}
-
-pub trait TapIfCloned
-where
-    Self: Sized + Clone,
-{
-    fn cloned_tap_if(self: &Self, condition: bool, modifier: impl FnOnce(&Self) -> Self) -> Self {
-        if condition {
-            modifier(self)
-        } else {
-            self.clone()
-        }
-    }
-
-    fn cloned_tap_if_fulfills(
-        self: &Self,
-        predicate: impl FnOnce(&Self) -> bool,
-        modifier: impl FnOnce(&Self) -> Self,
-    ) -> Self {
-        self.cloned_tap_if(predicate(self), modifier)
-    }
-}
-
-impl<T> TapIf for T {}
-impl<T: Sized> TapIfSized for T {}
-impl<T: Sized + Clone> TapIfCloned for T {}
 
 lazy_static! {
     static ref END_IN_Z: Regex = Regex::new("Z$").unwrap();
