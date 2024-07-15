@@ -9,7 +9,7 @@ use std::{
     fmt::{Debug, Display},
     hash::Hash,
 };
-use tap::{Pipe, Tap, TapOptional};
+use tap::{Conv, Pipe, Tap, TapOptional};
 
 use crate::tapif::TapIfSized;
 
@@ -709,21 +709,21 @@ fn positions_to_string<'a>(
                 format!(
                     "{:>2} x {} = ({}, {})",
                     iter_count.access(pos),
-                    pos.normal()
-                        .tap_into_if(END_IN_A.is_match(pos), ColoredString::green)
-                        .tap_into_if(END_IN_Z.is_match(pos), ColoredString::red),
+                    (*pos).conv::<ColoredString>()
+                        .pipe_if(END_IN_A.is_match(pos), ColoredString::green)
+                        .pipe_if(END_IN_Z.is_match(pos), ColoredString::red),
                     &left_right
                         .left
-                        .normal()
-                        .tap_into_if(lr == 'L', ColoredString::bold)
-                        .tap_into_if(END_IN_A.is_match(left_right.left), ColoredString::green)
-                        .tap_into_if(END_IN_Z.is_match(left_right.left), ColoredString::red),
+                        .conv::<ColoredString>()
+                        .pipe_if(lr == 'L', ColoredString::bold)
+                        .pipe_if(END_IN_A.is_match(left_right.left), ColoredString::green)
+                        .pipe_if(END_IN_Z.is_match(left_right.left), ColoredString::red),
                     &left_right
                         .right
-                        .normal()
-                        .tap_into_if(lr == 'R', ColoredString::bold)
-                        .tap_into_if(END_IN_A.is_match(left_right.right), ColoredString::green)
-                        .tap_into_if(END_IN_Z.is_match(left_right.right), ColoredString::red)
+                        .conv::<ColoredString>()
+                        .pipe_if(lr == 'R', ColoredString::bold)
+                        .pipe_if(END_IN_A.is_match(left_right.right), ColoredString::green)
+                        .pipe_if(END_IN_Z.is_match(left_right.right), ColoredString::red)
                 )
             } else {
                 "                    ".to_string()
