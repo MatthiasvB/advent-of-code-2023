@@ -7,7 +7,7 @@ use std::{
     collections::{hash_map::RandomState, HashMap},
     error::Error,
     fmt::{Debug, Display},
-    hash::Hash,
+    hash::Hash, mem::ManuallyDrop,
 };
 use tap::{Conv, Pipe, Tap, TapOptional};
 
@@ -262,6 +262,108 @@ pub struct Walker<'a> {
     jump_map: JumpMap<'a>,
     pub start_positions: Vec<&'a str>,
 }
+
+pub trait StringSliceContainer {
+    type Container<'a>;
+}
+
+pub struct SelfOwnedStringSlices<T: StringSliceContainer> {
+    _string: String,
+    container: ManuallyDrop<T::Container<'static>>,
+}
+
+impl<T: StringSliceContainer> SelfOwnedStringSlices<T> {
+    pub fn new<F>(string: String, container_factory: F) -> Self
+    where
+        F: for<'a> FnOnce(&'a str) -> T::Container<'a>,
+    {
+        let container = container_factory(&string);
+
+        // SAFETY: We are only changing the lifetime parameter to be 'static,
+        // and we will never actually use this container with the 'static
+        // lifetime.
+        let container =
+            unsafe { std::mem::transmute::<T::Container<'_>, T::Container<'static>>(container) };
+
+        Self {
+            container: ManuallyDrop::new(container),
+            _string: string,
+        }
+    }
+
+    pub fn get<'a>(&'a self) -> &'a T::Container<'a> {
+        // SAFETY: We are only changing the lifetime parameter, and we are
+        // shortening it to the lifetime of the self reference, which ensures
+        // that the caller cannot retain any (non-static) reference stored in
+        // the container for longer than self exists.
+        unsafe {
+            std::mem::transmute::<&'a T::Container<'static>, &'a T::Container<'a>>(&self.container)
+        }
+    }
+}
+
+impl<T: StringSliceContainer> Drop for SelfOwnedStringSlices<T> {
+    fn drop<'a>(&'a mut self) {
+        // SAFETY: We change the lifetime of the container so it's safe to drop,
+        // then we drop it.
+        unsafe {
+            let container = std::mem::transmute::<
+                &'a mut ManuallyDrop<T::Container<'static>>,
+                &'a mut ManuallyDrop<T::Container<'a>>,
+            >(&mut self.container);
+
+            ManuallyDrop::drop(container);
+        }
+    }
+}
+
+pub struct HandleableWalker {}
+
+impl StringSliceContainer for HandleableWalker {
+    type Container<'a> = Walker<'a>;
+}
+
+pub fn get_walker(input: String) -> SelfOwnedStringSlices<HandleableWalker> {
+    SelfOwnedStringSlices::new(input, |input| {
+        Walker::new(input)
+    })
+}
+
+struct X {}
+
+pub trait SelfRefContainer {
+    type WalkMap<'a>;
+    type WalkInstructions<'a>;
+    type Itertools<'a>;
+    type JumpMap<'a>;
+    type StartPositions<'a>;
+}
+
+impl SelfRefContainer for X {
+    type WalkMap<'a> = MyMap<&'a str, LeftRight<'a>>;
+    type WalkInstructions<'a> = &'a str;
+    type Itertools<'a> = MyMap<&'a str, Itertool>;
+    type JumpMap<'a> = JumpMap<'a>;
+    type StartPositions<'a> = Vec<&'a str>;
+}
+
+pub struct UsableWalker<T: SelfRefContainer> {
+    _input: String,
+    walk_map: ManuallyDrop<T::WalkMap<'static>>,
+    walk_instructions: ManuallyDrop<T::WalkInstructions<'static>>,
+    itertools: ManuallyDrop<T::Itertools<'static>>,
+    jump_map: ManuallyDrop<T::JumpMap<'static>>,
+    start_positions: ManuallyDrop<T::StartPositions<'static>>,
+}
+
+// impl<T: SelfRefContainer> UsableWalker<T> {
+//     pub fn new<F>(challenge: String, walker_factory: F) -> Self
+//     where
+//         F: for<'a> FnOnce(&'a str) -> T::Container<'a>,
+//     {
+//         todo!()
+//     }
+// }
 
 /*
  * Create the jump map, which is done differently for both walkers and not public API,

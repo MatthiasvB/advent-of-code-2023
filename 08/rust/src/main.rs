@@ -5,6 +5,8 @@ mod tapif;
 
 use walker::{AOC8Solver, AOCTracer, PowerWalker, Walker};
 
+use crate::walker::get_walker;
+
 fn main() {
     let file_name: String = env::args().nth(1).expect(
         "You must pass the filename of the challenge input as first argument to this program",
@@ -16,7 +18,8 @@ fn main() {
         fs::read_to_string(file_name).expect("Could not read the file you told me to analyze");
 
     let walker = 
-        Walker::new(&challenge);
+        get_walker(challenge);
+        // Walker::new(&challenge);
         //PowerWalker::new(&challenge);
 
     /* let result_part_1 = walker.solve_part_1();
@@ -34,7 +37,7 @@ fn main() {
     }
     println!("\n That's {} locations in total", traced_locations.map(|el| el.1.len()).sum::<usize>()); */
 
-    (0..50000).into_iter().zip(walker.iter_steps(true)).for_each(|(_, step)| {
+    (0..50000).into_iter().zip(walker.get().iter_steps(true)).for_each(|(_, step)| {
         println!("{}", step);
     });
 }

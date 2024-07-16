@@ -9,6 +9,7 @@ edition = "2021"
 colored = "2.1.0"
 fnv = "1.0.7"
 lazy_static = "1.4.0"
+ouroboros = "0.18.4"
 regex = "1.10.3"
 tap = "1.0.1"
 
