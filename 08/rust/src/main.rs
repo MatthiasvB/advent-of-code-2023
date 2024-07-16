@@ -34,7 +34,7 @@ fn main() {
     }
     println!("\n That's {} locations in total", traced_locations.map(|el| el.1.len()).sum::<usize>()); */
 
-    (0..50000).into_iter().zip(walker.iter_steps(true, true)).for_each(|(_, step)| {
+    (0..50000).into_iter().zip(walker.iter_steps(true)).for_each(|(_, step)| {
         println!("{}", step);
     });
 }

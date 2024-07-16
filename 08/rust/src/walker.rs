@@ -524,7 +524,6 @@ pub trait AOCTracer<T> {
     fn iter_steps(
         self: &Self,
         stop_at_repeat: bool,
-        show_duplicates: bool,
     ) -> impl Iterator<Item = String>;
 }
 
@@ -646,18 +645,19 @@ impl<'a> AOCTracer<String> for Walker<'a> {
         traces
     }
 
-    fn iter_steps(
-        self: &Self,
-        stop_at_repeat: bool,
-        hide_duplicates: bool,
-    ) -> impl Iterator<Item = String> {
+    fn iter_steps(self: &Self, stop_at_repeat: bool) -> impl Iterator<Item = String> {
         self.walk_instructions.chars().cycle().scan(
             (
                 0,
                 self.start_positions.clone(),
                 FnvHashMap::from_iter(self.start_positions.iter().map(|pos| (*pos, 1usize))),
+                false,
             ),
-            move |(i, currents, iter_count), lr| {
+            move |(i, currents, iter_count, exit_after_next), lr| {
+                if *exit_after_next { return None };
+                if stop_at_repeat && iter_count.len() == self.walk_map.len() {
+                    *exit_after_next = true;
+                }
                 let printable = format!(
                     "{:>4} > {:>2}: {lr}\t{}",
                     i,
@@ -667,11 +667,7 @@ impl<'a> AOCTracer<String> for Walker<'a> {
                         &self.walk_map,
                         iter_count,
                         lr,
-                        if hide_duplicates {
-                            Some(&iter_count)
-                        } else {
-                            None
-                        }
+                        Some(&iter_count)
                     )
                 );
                 for current in currents {
@@ -682,9 +678,6 @@ impl<'a> AOCTracer<String> for Walker<'a> {
                         .or_insert(1usize);
                 }
                 *i += 1;
-                if stop_at_repeat && iter_count.len() == self.walk_map.len() {
-                    return None;
-                }
                 Some(printable)
             },
         )
@@ -703,31 +696,35 @@ fn positions_to_string<'a>(
         .map(|pos| {
             let already_counted = duplicate_map
                 .map(|duplicates| duplicates.get(pos))
-                .flatten();
-            if let Some(1) = already_counted {
-                let left_right = walk_map.access(pos);
-                format!(
-                    "{:>2} x {} = ({}, {})",
-                    iter_count.access(pos),
-                    (*pos).conv::<ColoredString>()
-                        .pipe_if(END_IN_A.is_match(pos), ColoredString::green)
-                        .pipe_if(END_IN_Z.is_match(pos), ColoredString::red),
-                    &left_right
-                        .left
-                        .conv::<ColoredString>()
-                        .pipe_if(lr == 'L', ColoredString::bold)
-                        .pipe_if(END_IN_A.is_match(left_right.left), ColoredString::green)
-                        .pipe_if(END_IN_Z.is_match(left_right.left), ColoredString::red),
-                    &left_right
-                        .right
-                        .conv::<ColoredString>()
-                        .pipe_if(lr == 'R', ColoredString::bold)
-                        .pipe_if(END_IN_A.is_match(left_right.right), ColoredString::green)
-                        .pipe_if(END_IN_Z.is_match(left_right.right), ColoredString::red)
-                )
-            } else {
-                "                    ".to_string()
-            }
+                .flatten()
+                .or(Some(&1));
+            let left_right = walk_map.access(pos);
+            format!(
+                "{:>2} x {} = ({}, {})",
+                iter_count.access(pos),
+                (*pos)
+                    .conv::<ColoredString>()
+                    .pipe_if(END_IN_A.is_match(pos), ColoredString::green)
+                    .pipe_if(END_IN_Z.is_match(pos), ColoredString::red),
+                &left_right
+                    .left
+                    .conv::<ColoredString>()
+                    .pipe_if(lr == 'L', ColoredString::bold)
+                    .pipe_if(END_IN_A.is_match(left_right.left), ColoredString::green)
+                    .pipe_if(END_IN_Z.is_match(left_right.left), ColoredString::red),
+                &left_right
+                    .right
+                    .conv::<ColoredString>()
+                    .pipe_if(lr == 'R', ColoredString::bold)
+                    .pipe_if(END_IN_A.is_match(left_right.right), ColoredString::green)
+                    .pipe_if(END_IN_Z.is_match(left_right.right), ColoredString::red)
+            )
+            .conv::<ColoredString>()
+            .pipe_if(
+                already_counted.is_some_and(|val| val != &1),
+                ColoredString::blue,
+            )
+            .to_string()
         })
         .collect::<Vec<_>>()
         .join("\t")

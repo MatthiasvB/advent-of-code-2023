@@ -1,3 +1,4 @@
+#![allow(dead_code, unused)]
 use std::{
     borrow::{Borrow, BorrowMut},
     ops::{Deref, DerefMut},
@@ -51,19 +52,71 @@ pub trait TapIf {
     }
 }
 
+// macro_rules! predicate_signature {
+//     ( $orig:ident, $orig_fulfills:ident ) => {
+//         fn $orig(
+//             self,
+//             predicate: impl FnOnce(&Self) -> bool,
+//             modifier: impl FnOnce(Self) -> Self,
+//         ) -> Self {
+//             predicate(&self).pipe(|condition| self.$orig_fulfills(condition, modifier))
+//         }
+//     };
+// }
+
+macro_rules! predicate_signature {
+    ( $newFnName:ident; fn $name:ident($self:ident, $condition:ident: bool, $callbackName:ident: $callbackType:ty) -> Self $body:block ) => {
+        fn $name($self, $condition: bool, $callbackName: $callbackType) -> Self $body
+
+        fn $newFnName($self, predicate: impl FnOnce(&Self) -> bool, $callbackName: $callbackType) -> Self {
+            predicate(&$self).pipe(|condition| $self.$name(condition, $callbackName))
+        }
+    }
+}
+
+macro_rules! home_brewed2 {
+    ( $postfix:ident; fn $name:ident(self, condition: bool, $callbackName:ident: $callbackType:ty) ) => {
+
+        fn $name$postfix(self, predicate: impl FnOnce(&Self) -> bool, $callbackName: $callbackType) -> Self {
+            predicate(&self).pipe(|condition| self.$name(condition, $callbackName))
+        }
+
+        fn $name(self, condition: bool, $callbackName: $callbackType) -> Self { self }
+    }
+}
+
 /// Defines utilities to conditionally tap closures to values in a chainable fashion.
 pub trait TapIfSized
 where
     Self: Sized,
 {
-    // I wonder whether "into" fits well here
-    fn pipe_if(self, condition: bool, modifier: impl FnOnce(Self) -> Self) -> Self {
+    predicate_signature!(pipe_if_fulfills; fn pipe_if(self, condition: bool, modifier: impl FnOnce(Self) -> Self) -> Self {
         if condition {
             modifier(self)
         } else {
             self
         }
-    }
+    });
+
+    // home_brewed2!{pipe_if_fulfills; fn pipe_if(self, condition: bool, modifier: impl FnOnce(Self) -> Self)}
+
+    // fn $name(self, condition: bool, $callbackName: $CallbackType) -> Self {
+    //     $body
+    // }
+
+    // turned into
+
+    // fn ${name}_fulfills(self: $SelfType, predicate: impl (&Self) -> bool, $callbackName: $CallbackType) -> Self {
+    //     predicate(&self).pipe(|condition| self.$name(condition, modifier))
+    // }
+
+    /* fn pipe_if_fulfills(
+        self,
+        predicate: impl FnOnce(&Self) -> bool,
+        modifier: impl FnOnce(Self) -> Self,
+    ) -> Self {
+        predicate(&self).pipe(|condition| self.pipe_if(condition, modifier))
+    } */
 
     fn tap_if(self, condition: bool, runner: impl FnOnce(&Self)) -> Self {
         if condition {
@@ -136,14 +189,6 @@ where
             runner(&mut self);
         }
         self
-    }
-
-    fn pipe_if_fulfills(
-        self,
-        predicate: impl FnOnce(&Self) -> bool,
-        modifier: impl FnOnce(Self) -> Self,
-    ) -> Self {
-        predicate(&self).pipe(|condition| self.pipe_if(condition, modifier))
     }
 
     fn tap_if_fulfills(
@@ -227,6 +272,7 @@ where
     }
 }
 
+// Probably throw away
 pub trait TapIfCloned
 where
     Self: Sized + Clone,
