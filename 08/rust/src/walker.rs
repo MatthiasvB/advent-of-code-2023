@@ -263,19 +263,20 @@ pub struct Walker<'a> {
     pub start_positions: Vec<&'a str>,
 }
 
-pub trait StringSliceContainer {
+// adapted from https://stackoverflow.com/a/78685449/8447743
+pub trait SelfRef {
     type Container<'a>;
 }
 
-pub struct SelfOwnedStringSlices<T: StringSliceContainer> {
-    _string: String,
+pub struct SelfRefWrapper<T: SelfRef, V> {
+    _owner: V,
     container: ManuallyDrop<T::Container<'static>>,
 }
 
-impl<T: StringSliceContainer> SelfOwnedStringSlices<T> {
-    pub fn new<F>(string: String, container_factory: F) -> Self
+impl<T: SelfRef, V> SelfRefWrapper<T, V> {
+    pub fn new<F>(string: V, container_factory: F) -> Self
     where
-        F: for<'a> FnOnce(&'a str) -> T::Container<'a>,
+        F: for<'a> FnOnce(&'a V) -> T::Container<'a>,
     {
         let container = container_factory(&string);
 
@@ -287,7 +288,7 @@ impl<T: StringSliceContainer> SelfOwnedStringSlices<T> {
 
         Self {
             container: ManuallyDrop::new(container),
-            _string: string,
+            _owner: string,
         }
     }
 
@@ -302,7 +303,7 @@ impl<T: StringSliceContainer> SelfOwnedStringSlices<T> {
     }
 }
 
-impl<T: StringSliceContainer> Drop for SelfOwnedStringSlices<T> {
+impl<T: SelfRef, V> Drop for SelfRefWrapper<T, V> {
     fn drop<'a>(&'a mut self) {
         // SAFETY: We change the lifetime of the container so it's safe to drop,
         // then we drop it.
@@ -319,51 +320,15 @@ impl<T: StringSliceContainer> Drop for SelfOwnedStringSlices<T> {
 
 pub struct HandleableWalker {}
 
-impl StringSliceContainer for HandleableWalker {
+impl SelfRef for HandleableWalker {
     type Container<'a> = Walker<'a>;
 }
 
-pub fn get_walker(input: String) -> SelfOwnedStringSlices<HandleableWalker> {
-    SelfOwnedStringSlices::new(input, |input| {
+pub fn get_walker(input: String) -> SelfRefWrapper<HandleableWalker, String> {
+    SelfRefWrapper::new(input, |input| {
         Walker::new(input)
     })
 }
-
-struct X {}
-
-pub trait SelfRefContainer {
-    type WalkMap<'a>;
-    type WalkInstructions<'a>;
-    type Itertools<'a>;
-    type JumpMap<'a>;
-    type StartPositions<'a>;
-}
-
-impl SelfRefContainer for X {
-    type WalkMap<'a> = MyMap<&'a str, LeftRight<'a>>;
-    type WalkInstructions<'a> = &'a str;
-    type Itertools<'a> = MyMap<&'a str, Itertool>;
-    type JumpMap<'a> = JumpMap<'a>;
-    type StartPositions<'a> = Vec<&'a str>;
-}
-
-pub struct UsableWalker<T: SelfRefContainer> {
-    _input: String,
-    walk_map: ManuallyDrop<T::WalkMap<'static>>,
-    walk_instructions: ManuallyDrop<T::WalkInstructions<'static>>,
-    itertools: ManuallyDrop<T::Itertools<'static>>,
-    jump_map: ManuallyDrop<T::JumpMap<'static>>,
-    start_positions: ManuallyDrop<T::StartPositions<'static>>,
-}
-
-// impl<T: SelfRefContainer> UsableWalker<T> {
-//     pub fn new<F>(challenge: String, walker_factory: F) -> Self
-//     where
-//         F: for<'a> FnOnce(&'a str) -> T::Container<'a>,
-//     {
-//         todo!()
-//     }
-// }
 
 /*
  * Create the jump map, which is done differently for both walkers and not public API,

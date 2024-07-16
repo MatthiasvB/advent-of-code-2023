@@ -17,8 +17,9 @@ fn main() {
     let challenge =
         fs::read_to_string(file_name).expect("Could not read the file you told me to analyze");
 
+    let walker_wrapper = get_walker(challenge);
     let walker = 
-        get_walker(challenge);
+        walker_wrapper.get();
         // Walker::new(&challenge);
         //PowerWalker::new(&challenge);
 
@@ -37,7 +38,7 @@ fn main() {
     }
     println!("\n That's {} locations in total", traced_locations.map(|el| el.1.len()).sum::<usize>()); */
 
-    (0..50000).into_iter().zip(walker.get().iter_steps(true)).for_each(|(_, step)| {
+    (0..50000).into_iter().zip(walker.iter_steps(true)).for_each(|(_, step)| {
         println!("{}", step);
     });
 }
