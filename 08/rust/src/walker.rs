@@ -269,16 +269,17 @@ pub trait SelfRef {
 }
 
 pub struct SelfRefWrapper<T: SelfRef, V> {
-    _owner: V,
+    _owner: Box<V>,
     container: ManuallyDrop<T::Container<'static>>,
 }
 
 impl<T: SelfRef, V> SelfRefWrapper<T, V> {
-    pub fn new<F>(string: V, container_factory: F) -> Self
+    pub fn new<F>(owner: V, container_factory: F) -> Self
     where
         F: for<'a> FnOnce(&'a V) -> T::Container<'a>,
     {
-        let container = container_factory(&string);
+        let _owner = Box::new(owner);
+        let container = container_factory(&_owner);
 
         // SAFETY: We are only changing the lifetime parameter to be 'static,
         // and we will never actually use this container with the 'static
@@ -288,7 +289,7 @@ impl<T: SelfRef, V> SelfRefWrapper<T, V> {
 
         Self {
             container: ManuallyDrop::new(container),
-            _owner: string,
+            _owner,
         }
     }
 
